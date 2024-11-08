@@ -5,7 +5,14 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.StringTokenizer;
+
+import edu.upenn.cis.edfdatawriter.EDFDataWriter;
+import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 
 /**
@@ -22,6 +29,11 @@ public class MEFStreamerMain {
         String directoryPath = args[0];
         File directory = new File(directoryPath);
         String subjectid = directory.getName(); //
+        // count number of mef files 
+        int numsignals;
+        String startdate = null;
+        String starttime = null;
+
 
         // Check if the provided path is a directory
         if (!directory.isDirectory()) {
@@ -32,16 +44,21 @@ public class MEFStreamerMain {
         // List all .mef files in the directory
         File[] mefFiles = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".mef"));
         
+        numsignals = mefFiles.length;
+        
         if (mefFiles == null || mefFiles.length == 0) {
             System.out.println("No .mef files found in the specified directory.");
             return;
         }
-
+        
+        ArrayList<String> channelnames = new ArrayList<>();
+        
         // Process each .mef file
         for (File inputFile : mefFiles) {
             String filePath = inputFile.getAbsolutePath();
             String fileName = inputFile.getName();
             String baseName;
+           
 
             // Check for file extension
             int dotIndex = fileName.lastIndexOf('.');
@@ -50,6 +67,9 @@ public class MEFStreamerMain {
             } else {
                 baseName = fileName; // Use the whole filename if no extension
             }
+            
+            channelnames.add(baseName);
+            
 
             // Construct output file names including the directory
             String headerFileName = directoryPath + File.separator + baseName + "_header_info.csv";
@@ -146,21 +166,54 @@ public class MEFStreamerMain {
                     
                     // Create new EDF files when time difference exceeds threshold
                     RandomAccessFile edfFile = null;
+                    
+                    int pagesum = 0;
+                    int mintimevalue = 0;
+                    long absStartTime = 0;
+                    
+                   
 
                     // Loop over each block
                     for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
-                        if (previousPage != null) {
-                            long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
-                            long nextBlockStartTime = page.timeStart;
-                        	String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+                    	if (previousPage == null) {
+                    		absStartTime = page.timeStart;
+                    		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+                    		// can be improved 
+                    		StringTokenizer tokenizer = new StringTokenizer(date, " ");
+                    		startdate = tokenizer.nextToken();
+                    		starttime = tokenizer.nextToken();
+                    	}
+                    		
+                    		else {
+                    			//System.out.println("Page Values: " + page.values.length);
+                    			pagesum += page.values.length;
+                    			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
+                    			long nextBlockStartTime = page.timeStart;
+                    			if (mintimevalue == 0) {
+                    				absStartTime = page.timeStart;
+                    				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+                        			// can be improved 
+                    				StringTokenizer tokenizer = new StringTokenizer(date, " ");
+                    				startdate = tokenizer.nextToken();
+                    				starttime = tokenizer.nextToken();
+                            }
                             long timeDifference = nextBlockStartTime - lastEntryTime;
 
                             // Check if the time difference requires a new file (or new channel)
                             if (timeDifference > 2 * timeIncrement) {
+                            	pagesum = 0;
+                            	long endblocktime = page.timeEnd;
+                            	long duration = (endblocktime - absStartTime)/1000000;
                                 if (edfFile != null) {
                                     // Close the current EDF file
                                     edfFile.close();
                                 }
+                                
+                                // Update running max and min based on the current block's values
+                              for (double value : page.values) {
+                                  runningMax = Math.max(runningMax, value);
+                                  runningMin = Math.min(runningMin, value);
+                               }
 
                              // Initialize a counter for the numbering
                                 int counter = 1; 
@@ -172,17 +225,33 @@ public class MEFStreamerMain {
                                 counter++;
                                 
                                 edfFile = new RandomAccessFile(newEdfFilePath, "rw");
+                                
+                                HashMap<String,Object> arguments = new HashMap<>();
+                                arguments.put("Physicalmax", runningMax);
+                                arguments.put("Physicalmin", runningMin);
+                                arguments.put("SubjID", subjectid);
+                                arguments.put("Signalnum", numsignals);
+                                arguments.put("StartDate", startdate);
+                                arguments.put("StartTime", starttime);
+                                arguments.put("Duration", duration);
+                                arguments.put("Recordsnum", pagesum);
+                                arguments.put("ChannelNames", channelnames);
+                      
+
 
                                 // Write header for the new file
-                               Edfheaderwriter(edfFile, header);
+                                EDFHeaderWriter writer = new EDFHeaderWriter(edfFile, arguments);
+                                writer.write();
 
                                 System.out.println("New EDF file created: " + newEdfFilePath);
                             }
+                            
+
 
                             // Write the data record for the current block to the EDF file
-                            if (edfFile != null) {
-                                Edfheaderwriter(edfFile, page.values);
-                            }
+                           // if (edfFile != null) {
+                            //	EDFHeaderWriter writer = new EDFHeaderWriter(edfFile, page.values);
+                            //}
 
                             // Log shift times
                             if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
@@ -190,11 +259,7 @@ public class MEFStreamerMain {
                                 shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
                             }
 
-                            // Update running max and min based on the current block's values
-                            for (double value : page.values) {
-                                runningMax = Math.max(runningMax, value);
-                                runningMin = Math.min(runningMin, value);
-                            }
+
                         }
 
                         // Update the previous page to the current page for the next iteration
@@ -215,12 +280,4 @@ public class MEFStreamerMain {
         System.out.println("All files processed!");
     }
 
-    // Write the EDF header 
-    private static void edfheaderwriter(RandomAccessFile edfFile, MefHeader2 header) throws IOException {
-    }
-
-    // Write data records to EDF file 
-    private static void writeDataRecordToEdf(RandomAccessFile edfFile, double[] values) throws IOException {
-
-    }
 }

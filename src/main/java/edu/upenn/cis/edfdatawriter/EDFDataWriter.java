@@ -1,4 +1,4 @@
-package edfdatawriter;
+package edu.upenn.cis.edfdatawriter;
 
 import java.io.*;
 import java.nio.ByteBuffer;
@@ -7,14 +7,13 @@ import java.nio.ByteOrder;
 public class EDFDataWriter {
 
     public static void main(String[] args) {
-        // Example setup for EDF file parameters
+        // Need to change this
         int numSignals = 32; // Number of signals in the EDF file
         int numSamplesPerSignal = 1000; // Number of samples per signal (per data record)
         int numRecords = 10000; // Number of records to write
         int signalDataSize = 2; // 2 bytes for each 16-bit signed integer value
         
-        // Example: Generating dummy data for 32 signals and 1000 samples per signal
-        // (In practice, you would read your actual data from a file or other source)
+        // Add actual data from main
         short[][] data = new short[numSignals][numSamplesPerSignal];
         for (int i = 0; i < numSignals; i++) {
             for (int j = 0; j < numSamplesPerSignal; j++) {
