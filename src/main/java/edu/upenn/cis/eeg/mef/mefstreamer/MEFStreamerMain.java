@@ -21,6 +21,7 @@ public class MEFStreamerMain {
         
         String directoryPath = args[0];
         File directory = new File(directoryPath);
+        String subjectid = directory.getName(); //
 
         // Check if the provided path is a directory
         if (!directory.isDirectory()) {
@@ -52,7 +53,7 @@ public class MEFStreamerMain {
 
             // Construct output file names including the directory
             String headerFileName = directoryPath + File.separator + baseName + "_header_info.csv";
-            String valuesFileName = directoryPath + File.separator + baseName + "_values_data.csv";
+            String shiftFileName = directoryPath + File.separator + baseName + "_shifted_times.csv";
 
             try (RandomAccessFile file = new RandomAccessFile(filePath, "r")) {
                 MEFStreamer streamer = new MEFStreamer(file);
@@ -60,7 +61,7 @@ public class MEFStreamerMain {
 
          // Write header information to CSV 53
                 try (BufferedWriter headerWriter = new BufferedWriter(new FileWriter(headerFileName))) {
-                	headerWriter.write("Institution,Unencrypted Text Field,Encryption Algorithm,Subject Encryption Used,Session Encryption Used,Data Encryption Used,Byte Order Code,Header Version Major,Header Version Minor,Header Length,Session Unique ID,Subject First Name,Subject Middle Name,Subject Last Name,Subject ID,Session Password,Number of Index Entries,Channel Name,Recording State Time,Recording End Time,Sampling Frequency,Low Frequency Filter Setting,High Frequency Filter Setting,Notch Filter Frequency,Voltage Conversion Factor,Acquisition System,Channel Comments,Study Comments,Physical Channel Number,Compression Algorithm,Maximum Compressed Block Size,Maximum Block Length,Block Interval,Maximum Data Value,Minimum Data Value,Block Header Length,GMT Offset,Discontinuity Data Offset,Number of Discontinuity Entries,File Unique ID,Anonymized Subject Name,Header CRC,8 Random Bytes,Bytes Read,Class,File Name,Index Data Offset,Index Data Offset End,Session Validation Field,Subject Validation Field,Voltage Offset,CRC Tab 32\n");
+                	headerWriter.write("Institution,Unencrypted Text Field,Encryption Algorithm,Subject Encryption Used,Session Encryption Used,Data Encryption Used,Byte Order Code,Header Version Major,Header Version Minor,Header Length,Session Unique ID,Subject First Name,Subject Middle Name,Subject Last Name,Subject ID,Session Password,Number of Index Entries,Channel Name,Recording Start Time,Recording End Time,Sampling Frequency,Low Frequency Filter Setting,High Frequency Filter Setting,Notch Filter Frequency,Voltage Conversion Factor,Acquisition System,Channel Comments,Study Comments,Physical Channel Number,Compression Algorithm,Maximum Compressed Block Size,Maximum Block Length,Block Interval,Maximum Data Value,Minimum Data Value,Block Header Length,GMT Offset,Discontinuity Data Offset,Number of Discontinuity Entries,File Unique ID,Anonymized Subject Name,Header CRC,8 Random Bytes,Bytes Read,Class,File Name,Index Data Offset,Index Data Offset End,Session Validation Field,Subject Validation Field,Voltage Offset,CRC Tab 32\n");
                 	headerWriter.write(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s\n",
                 			header.getInstitution(), // string
                 			header.getUnencryptedTextField(), //string
@@ -122,29 +123,89 @@ public class MEFStreamerMain {
                 			String.valueOf(header.getVoltageOffset()),
                 			String.valueOf(header.getCrcTab32()))); //byte
                         	// missing EEG Data Start
+                		
                 }
-
-
-                // Get number of blocks from MEF file
-                long numBlocks = streamer.getNumberOfBlocks();
-                System.out.println("Num Blocks: " + numBlocks + " blocks.");
-
+                
                 // Write values to CSV
-                try (BufferedWriter valuesWriter = new BufferedWriter(new FileWriter(valuesFileName))) {
-                	valuesWriter.write("Value\n");
+                try (BufferedWriter shiftWriter = new BufferedWriter(new FileWriter(shiftFileName))) {
+                    shiftWriter.write("Start_Discont,End_Discont,Difference_minus_Increment\n");
+                 
+                    // Get number of blocks from MEF file
+                    long numBlocks = streamer.getNumberOfBlocks();
+                    System.out.println("Num Blocks: " + numBlocks + " blocks.");
+                    
+                	// Pull sampling frequency to be used in calculations
+                	double samplingfreq = header.getSamplingFrequency();
+                    // Define the time increment
+                    long timeIncrement = (long) (1.0 / samplingfreq * Math.pow(10, 6)); // 1/sampling frequency * 10^6
 
-                	// Loop over each page within the blocks
-                	for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks - 1)) {
+                    TimeSeriesPage previousPage = null;
+                    // Initialize running max and min
+                    double runningMax = Double.NEGATIVE_INFINITY;
+                    double runningMin = Double.POSITIVE_INFINITY;
+                    
+                    // Create new EDF files when time difference exceeds threshold
+                    RandomAccessFile edfFile = null;
 
-                		// Write the page data to the CSV
-                		for (int value : page.values) {
-                			valuesWriter.write(String.format("%d\n", value));
-                		}
-                	}
+                    // Loop over each block
+                    for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
+                        if (previousPage != null) {
+                            long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
+                            long nextBlockStartTime = page.timeStart;
+                        	String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+                            long timeDifference = nextBlockStartTime - lastEntryTime;
+
+                            // Check if the time difference requires a new file (or new channel)
+                            if (timeDifference > 2 * timeIncrement) {
+                                if (edfFile != null) {
+                                    // Close the current EDF file
+                                    edfFile.close();
+                                }
+
+                             // Initialize a counter for the numbering
+                                int counter = 1; 
+
+                                // Generate the new file path with the counter
+                                String newEdfFilePath = directoryPath + File.separator + subjectid + "_" + counter + ".edf";
+
+                                // Increment the counter for the next file
+                                counter++;
+                                
+                                edfFile = new RandomAccessFile(newEdfFilePath, "rw");
+
+                                // Write header for the new file
+                               Edfheaderwriter(edfFile, header);
+
+                                System.out.println("New EDF file created: " + newEdfFilePath);
+                            }
+
+                            // Write the data record for the current block to the EDF file
+                            if (edfFile != null) {
+                                Edfheaderwriter(edfFile, page.values);
+                            }
+
+                            // Log shift times
+                            if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
+                                long timeshift = (long) (timeDifference - timeIncrement);
+                                shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
+                            }
+
+                            // Update running max and min based on the current block's values
+                            for (double value : page.values) {
+                                runningMax = Math.max(runningMax, value);
+                                runningMin = Math.min(runningMin, value);
+                            }
+                        }
+
+                        // Update the previous page to the current page for the next iteration
+                        previousPage = page;
+                    }
+
+                    System.out.println("Header file created: " + headerFileName);
+                    System.out.println("Shift file created: " + shiftFileName);
+                    System.out.println("Running Max: " + runningMax);
+                    System.out.println("Running Min: " + runningMin);
                 }
-
-                System.out.println("Header file created: " + headerFileName);
-                System.out.println("Values file created: " + valuesFileName);
             } catch (IOException e) {
                 System.err.println("Error processing file: " + fileName);
                 e.printStackTrace();
@@ -152,5 +213,14 @@ public class MEFStreamerMain {
         }
 
         System.out.println("All files processed!");
+    }
+
+    // Write the EDF header 
+    private static void edfheaderwriter(RandomAccessFile edfFile, MefHeader2 header) throws IOException {
+    }
+
+    // Write data records to EDF file 
+    private static void writeDataRecordToEdf(RandomAccessFile edfFile, double[] values) throws IOException {
+
     }
 }
