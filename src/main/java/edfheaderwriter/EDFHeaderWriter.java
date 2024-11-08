@@ -30,9 +30,11 @@ public class EDFHeaderWriter {
     private double[] signalDigitalMax;
     private  String[] prefiltering;
     private String[] numSamples;
+    private String File;
     
-	public EDFHeaderWriter(RandomAccessFile Input, HashMap<String, Object> arguments) {
-        // Need to update this with values from main
+	public EDFHeaderWriter(String Input, HashMap<String, Object> arguments) {
+        this.File = Input;
+		// Need to update this with values from main
         this.version = "0";          // 8 bytes
         this.patientID = (String)arguments.get("SubjID"); // 80 bytes
         this.recordingID = "Recording001"; // 80 bytes, figure out what this is
@@ -40,8 +42,13 @@ public class EDFHeaderWriter {
         this.startTime = (String)arguments.get("StartTime");        // 8 bytes
         this.numRecords = (int)arguments.get("Recordsnum");      // 8 bytes
         this.duration = (long)arguments.get("Duration");         // 8 bytes
-        this.numSignals = (int)arguments.get("Signalnum");        // 4 bytes
+        this.numSignals = (int)arguments.get("Signalnum");        // 4 byte
         this.numBytes = (numSignals*256) + 256;
+        
+        System.out.println("Duration " + this.duration);
+        System.out.println("numSignals " + this.numSignals);
+        System.out.println("numBytes" + this.numBytes);
+        System.out.println("numRecords " + this.numRecords);
         
         
         this.signalLabels = new String[32]; // Signal labels
@@ -82,8 +89,8 @@ public class EDFHeaderWriter {
         offset = writeStringToHeader(this.recordingID, header, offset, 80);
         offset = writeStringToHeader(this.startDate, header, offset, 8);
         offset = writeStringToHeader(this.startTime, header, offset, 8);
-        offset = writeStringToHeader("",header,offset,44);
         offset = writeStringToHeader(String.valueOf(this.numBytes), header, offset, 8);
+        offset = writeStringToHeader("",header,offset,44);
         offset = writeStringToHeader(String.valueOf(this.numRecords), header, offset, 8);
         offset = writeStringToHeader(String.valueOf(this.duration), header, offset, 8);
         offset = writeStringToHeader(String.valueOf(this.numSignals), header, offset, 4);
@@ -96,22 +103,19 @@ public class EDFHeaderWriter {
             offset = writeStringToHeader(signalPhysicalDimensions[i], header, offset, 8);
             offset = writeStringToHeader(String.format("%f", signalPhysicalMin[i]), header, offset, 8);
             offset = writeStringToHeader(String.format("%f", signalPhysicalMax[i]), header, offset, 8);
-            System.out.println("Error2: "+i);
             offset = writeStringToHeader(String.format("%f", signalDigitalMin[i]), header, offset, 8);
             offset = writeStringToHeader(String.format("%f", signalDigitalMax[i]), header, offset, 8);
             offset = writeStringToHeader(prefiltering[i], header, offset, 80);
             offset = writeStringToHeader(numSamples[i], header, offset, 8);
             offset = writeStringToHeader("", header, offset, 32);
-            System.out.println("Error3: ");
         }
 
         // Reserved: fill the last section with spaces
         //offset = writeStringToHeader("", header, offset, this.numSignals);
 
         // Write header to file
-        try (FileOutputStream out = new FileOutputStream("/Users/juliadengler/Documents/output.edf")) {
+        try (FileOutputStream out = new FileOutputStream(this.File)) {
             out.write(header);
-            System.out.println("fileoutputstream");
         } catch (IOException e) {
             e.printStackTrace();
         }

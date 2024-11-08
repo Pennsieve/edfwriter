@@ -3,15 +3,28 @@ package edu.upenn.cis.edfdatawriter;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.HashMap;
 
 public class EDFDataWriter {
-
-    public static void main(String[] args) {
+	
+    private int numSignals;
+    private int numSamplesPerSignal;
+    private int numRecords;
+    private int signalDataSize;
+    private String File;
+    
+    public EDFDataWriter(String Input, HashMap<String, Object> arguments) {
+    	this.File = Input;
         // Need to change this
-        int numSignals = 32; // Number of signals in the EDF file
-        int numSamplesPerSignal = 1000; // Number of samples per signal (per data record)
-        int numRecords = 10000; // Number of records to write
-        int signalDataSize = 2; // 2 bytes for each 16-bit signed integer value
+        this.numSignals = (int)arguments.get("numSignals"); // Number of signals in the EDF file
+        this.numSamplesPerSignal = 1000; // Number of samples per signal (per data record)
+        this.numRecords = (int)arguments.get("Recordsnum");  // Number of records to write
+        this.signalDataSize = 2; // 2 bytes for each 16-bit signed integer value
+    	
+    }
+
+    public void write() {
+
         
         // Add actual data from main
         short[][] data = new short[numSignals][numSamplesPerSignal];
@@ -22,20 +35,22 @@ public class EDFDataWriter {
         }
 
         // Open EDF file in append mode
-        try (RandomAccessFile raf = new RandomAccessFile("output.edf", "rw")) {
+        try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
             // Seek to the point after the 256-byte header (typically starting at byte 256)
-            raf.seek(256);
+            // do not hard code this
+        	raf.seek(512);
 
             // Write data records
             for (int record = 0; record < numRecords; record++) {
                 writeDataRecord(raf, data, numSignals, numSamplesPerSignal, signalDataSize);
             }
+            raf.close();
 
             System.out.println("Data records written successfully.");
         } catch (IOException e) {
             e.printStackTrace();
         }
-    }
+    } 
 
     /**
      * Writes a single data record to the EDF file.

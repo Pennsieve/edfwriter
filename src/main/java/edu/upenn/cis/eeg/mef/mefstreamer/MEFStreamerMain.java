@@ -168,7 +168,7 @@ public class MEFStreamerMain {
                     RandomAccessFile edfFile = null;
                     
                     int pagesum = 0;
-                    int mintimevalue = 0;
+                    boolean mintimevalue = false;
                     long absStartTime = 0;
                     
                    
@@ -189,19 +189,19 @@ public class MEFStreamerMain {
                     			pagesum += page.values.length;
                     			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
                     			long nextBlockStartTime = page.timeStart;
-                    			if (mintimevalue == 0) {
+                    			if (mintimevalue == false) {
                     				absStartTime = page.timeStart;
                     				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
                         			// can be improved 
                     				StringTokenizer tokenizer = new StringTokenizer(date, " ");
                     				startdate = tokenizer.nextToken();
                     				starttime = tokenizer.nextToken();
+                    				mintimevalue = true;
                             }
                             long timeDifference = nextBlockStartTime - lastEntryTime;
 
                             // Check if the time difference requires a new file (or new channel)
                             if (timeDifference > 2 * timeIncrement) {
-                            	pagesum = 0;
                             	long endblocktime = page.timeEnd;
                             	long duration = (endblocktime - absStartTime)/1000000;
                                 if (edfFile != null) {
@@ -240,18 +240,22 @@ public class MEFStreamerMain {
 
 
                                 // Write header for the new file
-                                EDFHeaderWriter writer = new EDFHeaderWriter(edfFile, arguments);
+                                EDFHeaderWriter writer = new EDFHeaderWriter(newEdfFilePath, arguments);
                                 writer.write();
 
                                 System.out.println("New EDF file created: " + newEdfFilePath);
+                                pagesum = 0;
+                                mintimevalue = false;
                             }
                             
 
 
                             // Write the data record for the current block to the EDF file
-                           // if (edfFile != null) {
-                            //	EDFHeaderWriter writer = new EDFHeaderWriter(edfFile, page.values);
-                            //}
+                            if (edfFile != null) {
+                            	EDFDataWriter writer = new EDFDataWriter(newEdfFilePath, arguments);
+                            	writer.write();
+                            	//edfFile, page.values);
+                            }
 
                             // Log shift times
                             if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
