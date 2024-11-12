@@ -16,7 +16,7 @@ public class EDFDataWriter {
     public EDFDataWriter(String Input, HashMap<String, Object> arguments) {
     	this.File = Input;
         // Need to change this
-        this.numSignals = (int)arguments.get("numSignals"); // Number of signals in the EDF file
+        this.numSignals = (int)arguments.get("Signalnum"); // Number of signals in the EDF file
         this.numSamplesPerSignal = 1000; // Number of samples per signal (per data record)
         this.numRecords = (int)arguments.get("Recordsnum");  // Number of records to write
         this.signalDataSize = 2; // 2 bytes for each 16-bit signed integer value

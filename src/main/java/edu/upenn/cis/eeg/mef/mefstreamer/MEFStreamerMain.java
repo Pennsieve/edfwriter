@@ -19,6 +19,10 @@ import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
  * Main class to run the MEFStreamer application.
  */
 public class MEFStreamerMain {
+	
+	static String newEdfFilePath ;
+	static HashMap<String,Object> arguments; 
+	
     public static void main(String[] args) {
         // Check for file path argument
         if (args.length < 1) {
@@ -219,14 +223,14 @@ public class MEFStreamerMain {
                                 int counter = 1; 
 
                                 // Generate the new file path with the counter
-                                String newEdfFilePath = directoryPath + File.separator + subjectid + "_" + counter + ".edf";
+                                newEdfFilePath = directoryPath + File.separator + subjectid + "_" + counter + ".edf";
 
                                 // Increment the counter for the next file
                                 counter++;
                                 
                                 edfFile = new RandomAccessFile(newEdfFilePath, "rw");
                                 
-                                HashMap<String,Object> arguments = new HashMap<>();
+                                arguments = new HashMap<>();
                                 arguments.put("Physicalmax", runningMax);
                                 arguments.put("Physicalmin", runningMin);
                                 arguments.put("SubjID", subjectid);
