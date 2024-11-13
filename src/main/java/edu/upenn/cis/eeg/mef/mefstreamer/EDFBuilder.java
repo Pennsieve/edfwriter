@@ -98,7 +98,8 @@ public class EDFBuilder{
 
         // Write header for the new file
         EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-        int headerSize = headerWriter.write();
+        int headerSize = 0;
+//      headerWriter.write();
 		
 		for (File inputFile : this.files) {
             String filePath = inputFile.getAbsolutePath();

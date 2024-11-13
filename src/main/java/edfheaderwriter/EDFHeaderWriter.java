@@ -6,8 +6,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import edu.upenn.cis.eeg.mef.mefstreamer.FieldDetails;
 
-
-
 //import edu.upenn.cis.eeg.mef.mefstreamer.MefHeader2;
 
 public class EDFHeaderWriter {
@@ -33,7 +31,7 @@ public class EDFHeaderWriter {
     private  String[] prefiltering;
     private String[] numSamples;
     private String filePath;
-    private final HashMap<String, FieldDetails> fieldMetadata;
+    private final HashMap<String, FieldDetails> headerData;
     
 	public EDFHeaderWriter(String filePath, HashMap<String, Object> arguments) {
         this.filePath = filePath;
@@ -47,12 +45,6 @@ public class EDFHeaderWriter {
         this.duration = (long)arguments.get("Duration");         // 8 bytes
         this.numSignals = (int)arguments.get("Signalnum");        // 4 byte
         this.numBytes = (numSignals*256) + 256;
-        
-        System.out.println("Duration " + this.duration);
-        System.out.println("numSignals " + this.numSignals);
-        System.out.println("numBytes" + this.numBytes);
-        System.out.println("numRecords " + this.numRecords);
-        
         
         this.signalLabels = new String[this.numSignals]; // Signal labels
         this.signalPhysicalDimensions = new String[this.numSignals]; // Signal dimensions
@@ -79,69 +71,77 @@ public class EDFHeaderWriter {
         }
         
         
-        fieldMetadata = new HashMap<>();
+        headerData = new HashMap<>();
 
-        fieldMetadata.put("version", new FieldDetails(0, 8, String.class)); // 8 bytes
-        fieldMetadata.put("patientID", new FieldDetails(8, 80, String.class)); // 80 bytes
-        fieldMetadata.put("recordingID", new FieldDetails(88, 80, String.class)); // 80 bytes
-        fieldMetadata.put("startDate", new FieldDetails(168, 8, String.class)); // 8 bytes
-        fieldMetadata.put("startTime", new FieldDetails(176, 8, String.class)); // 8 bytes
-        fieldMetadata.put("numRecords", new FieldDetails(184, 8, Integer.class)); // 8 bytes
-        fieldMetadata.put("duration", new FieldDetails(192, 8, Long.class)); // 8 bytes
-        fieldMetadata.put("numSignals", new FieldDetails(200, 4, Integer.class)); // 4 bytes
-        fieldMetadata.put("numBytes", new FieldDetails(204, 8, Integer.class)); // 8 bytes
-            // Add mappings for signal-related fields here...
-       
-	
+        headerData.put("version", new FieldDetails(0, 8, String.class)); // 8 bytes
+        headerData.put("patientID", new FieldDetails(8, 80, String.class)); // 80 bytes
+        headerData.put("recordingID", new FieldDetails(88, 80, String.class)); // 80 bytes
+        headerData.put("startDate", new FieldDetails(168, 8, String.class)); // 8 bytes
+        headerData.put("startTime", new FieldDetails(176, 8, String.class)); // 8 bytes
+        headerData.put("numRecords", new FieldDetails(184, 8, Integer.class)); // 8 bytes
+        headerData.put("duration", new FieldDetails(192, 8, Long.class)); // 8 bytes
+        headerData.put("numSignals", new FieldDetails(200, 4, Integer.class)); // 4 bytes
+        headerData.put("numBytes", new FieldDetails(204, 8, Integer.class)); // 8 bytes
 	}
 	
 
-    public int write() {
+	public int write(String EDFPath) {
+	    // Prepare the header byte array
+	    byte[] header = new byte[numBytes];
+	    int offset = 0;
 
-        // Prepare the header byte array
-        byte[] header = new byte[numBytes];
-        int offset = 0;
-        
-        
-        // Fill in the header fields
-        offset = writeStringToHeader(this.version, header, offset, 8);
-        offset = writeStringToHeader(this.patientID, header, offset, 80);
-        offset = writeStringToHeader(this.recordingID, header, offset, 80);
-        offset = writeStringToHeader(this.startDate, header, offset, 8);
-        offset = writeStringToHeader(this.startTime, header, offset, 8);
-        offset = writeStringToHeader(String.valueOf(this.numBytes), header, offset, 8);
-        offset = writeStringToHeader("",header,offset,44);
-        offset = writeStringToHeader(String.valueOf(this.numRecords), header, offset, 8);
-        offset = writeStringToHeader(String.valueOf(this.duration), header, offset, 8);
-        offset = writeStringToHeader(String.valueOf(this.numSignals), header, offset, 4);
-        
+	    // Fill in the header fields
+	    offset = writeStringToHeader(this.version, header, offset, 8);
+	    offset = writeStringToHeader(this.patientID, header, offset, 80);
+	    offset = writeStringToHeader(this.recordingID, header, offset, 80);
+	    offset = writeStringToHeader(this.startDate, header, offset, 8);
+	    offset = writeStringToHeader(this.startTime, header, offset, 8);
+	    offset = writeStringToHeader(String.valueOf(this.numBytes), header, offset, 8);
+	    offset = writeStringToHeader("", header, offset, 44);
+	    offset = writeStringToHeader(String.valueOf(this.numRecords), header, offset, 8);
+	    offset = writeStringToHeader(String.valueOf(this.duration), header, offset, 8);
+	    offset = writeStringToHeader(String.valueOf(this.numSignals), header, offset, 4);
 
-        // Signal data: each signal has a specific number of bytes to be written
-        // **Write all fields sequentially as per EDF standard**
-        for (String label : signalLabels) offset = writeStringToHeader(label, header, offset, 16);
-        for (String type : transducerType) offset = writeStringToHeader(type, header, offset, 80);
-        for (String dim : signalPhysicalDimensions) offset = writeStringToHeader(dim, header, offset, 8);
-        for (double min : signalPhysicalMin) offset = writeStringToHeader(String.format("%.2f", min), header, offset, 8);
-        for (double max : signalPhysicalMax) offset = writeStringToHeader(String.format("%.2f", max), header, offset, 8);
-        for (double min : signalDigitalMin) offset = writeStringToHeader(String.format("%.0f", min), header, offset, 8);
-        for (double max : signalDigitalMax) offset = writeStringToHeader(String.format("%.0f", max), header, offset, 8);
-        for (String pre : prefiltering) offset = writeStringToHeader(pre, header, offset, 80);
-        for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
-        for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
+	    // Signal data fields
+	    for (String label : signalLabels) offset = writeStringToHeader(label, header, offset, 16);
+	    for (String type : transducerType) offset = writeStringToHeader(type, header, offset, 80);
+	    for (String dim : signalPhysicalDimensions) offset = writeStringToHeader(dim, header, offset, 8);
+	    for (double min : signalPhysicalMin) offset = writeStringToHeader(String.format("%.2f", min), header, offset, 8);
+	    for (double max : signalPhysicalMax) offset = writeStringToHeader(String.format("%.2f", max), header, offset, 8);
+	    for (double min : signalDigitalMin) offset = writeStringToHeader(String.format("%.0f", min), header, offset, 8);
+	    for (double max : signalDigitalMax) offset = writeStringToHeader(String.format("%.0f", max), header, offset, 8);
+	    for (String pre : prefiltering) offset = writeStringToHeader(pre, header, offset, 80);
+	    for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
+	    for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
 
-        // Reserved: fill the last section with spaces
-        //offset = writeStringToHeader("", header, offset, this.numSignals);
+	    byte[] existingContent;
+	    try (FileInputStream fis = new FileInputStream(EDFPath)) {
+	        existingContent = fis.readAllBytes();
+	    } catch (IOException e) {
+	        System.err.println("Error reading existing file content: " + e.getMessage());
+	        e.printStackTrace();
+	        return -1;
+	    }
 
-        // Write header to file
-        try (FileOutputStream out = new FileOutputStream(this.filePath)) {
-            out.write(header);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+	    // Combine header and existing content
+	    byte[] combinedContent = new byte[header.length + existingContent.length];
+	    System.arraycopy(header, 0, combinedContent, 0, header.length);
+	    System.arraycopy(existingContent, 0, combinedContent, header.length, existingContent.length);
 
-        System.out.println("EDF header written successfully." + offset +" bytes written");
-        return this.numBytes;
-    }
+	    // Write combined content back to file
+	    try (FileOutputStream out = new FileOutputStream(EDFPath)) {
+	        out.write(combinedContent);
+	    } catch (IOException e) {
+	        System.err.println("Error writing combined content to file: " + e.getMessage());
+	        e.printStackTrace();
+	        return -1;
+	    }
+
+	    System.out.println("EDF header written successfully. " + offset + " bytes written.");
+	    return offset;  // Return total bytes written to header
+	}
+
+    
 
     // Helper method to write a string to the header byte array
     private static int writeStringToHeader(String str, byte[] header, int offset, int length) {
@@ -157,7 +157,7 @@ public class EDFHeaderWriter {
     
     // Experimental ...maybe use this for regular write. Not fully tested do not depend on
     public void updateHeader(String fieldName, Object newValue) throws IOException {
-        FieldDetails fieldDetails = fieldMetadata.get(fieldName);
+        FieldDetails fieldDetails = headerData.get(fieldName);
 
         if (fieldDetails == null) {
             throw new IllegalArgumentException("Field not found: " + fieldName);
@@ -177,7 +177,7 @@ public class EDFHeaderWriter {
             if (fieldName.equals("numSignals") || fieldName.equals("numRecords")) {
                 // Update the total number of bytes in the header
                 numBytes = header.length;
-                writeStringToHeader(String.valueOf(numBytes), header, fieldMetadata.get("numBytes").offset, 8);
+                writeStringToHeader(String.valueOf(numBytes), header, headerData.get("numBytes").offset, 8);
             }
 
             // re-write the header
