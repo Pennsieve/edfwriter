@@ -2,6 +2,7 @@ package edu.upenn.cis.eeg.mef.mefstreamer;
 
 import java.io.BufferedWriter;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
@@ -22,6 +23,7 @@ public class MEFStreamerMain {
 	
 	static String newEdfFilePath ;
 	static HashMap<String,Object> arguments; 
+	static EDFBuilder mefBuilder;
 	
     public static void main(String[] args) {
         // Check for file path argument
@@ -56,6 +58,19 @@ public class MEFStreamerMain {
         }
         
         ArrayList<String> channelnames = new ArrayList<>();
+
+        // Init MEFBuilder
+        mefBuilder = new EDFBuilder(mefFiles, directoryPath, subjectid,numsignals);
+        
+        try {
+			mefBuilder.build();
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
         
         // Process each .mef file
         for (File inputFile : mefFiles) {
@@ -257,7 +272,7 @@ public class MEFStreamerMain {
                             // Write the data record for the current block to the EDF file
                             if (edfFile != null) {
                             	EDFDataWriter writer = new EDFDataWriter(newEdfFilePath, arguments);
-                            	writer.write();
+//                            	writer.write();
                             	//edfFile, page.values);
                             }
 

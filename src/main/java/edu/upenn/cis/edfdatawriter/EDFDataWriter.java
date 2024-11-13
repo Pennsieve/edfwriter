@@ -7,7 +7,7 @@ import java.util.HashMap;
 
 public class EDFDataWriter {
 	
-    private int numSignals;
+    private int numSignals; // Number of channels (# Mef files)
     private int numSamplesPerSignal;
     private int numRecords;
     private int signalDataSize;
@@ -23,25 +23,25 @@ public class EDFDataWriter {
     	
     }
 
-    public void write() {
+    public void write(int offset, int[] values) {
 
         
         // Add actual data from main
-        short[][] data = new short[numSignals][numSamplesPerSignal];
-        for (int i = 0; i < numSignals; i++) {
-            for (int j = 0; j < numSamplesPerSignal; j++) {
-                data[i][j] = (short) (Math.random() * Short.MAX_VALUE); // Fill with dummy data
-            }
-        }
+    	short[][] data = new short[numSignals][numSamplesPerSignal];
+    	for (int i = 0; i < numSignals; i++) {
+    	    for (int j = 0; j < values.length && j < numSamplesPerSignal; j++) {
+    	        data[i][j] = (short) values[j];  
+    	    }
+    	}
 
         // Open EDF file in append mode
         try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
             // Seek to the point after the 256-byte header (typically starting at byte 256)
             // do not hard code this
-        	raf.seek(512);
+        	raf.seek(offset);
 
             // Write data records
-            for (int record = 0; record < numRecords; record++) {
+            for (int record = 0; record < values.length; record++) {
                 writeDataRecord(raf, data, numSignals, numSamplesPerSignal, signalDataSize);
             }
             raf.close();
@@ -68,5 +68,9 @@ public class EDFDataWriter {
 
         // Write the record to the file
         raf.write(buffer.array());
+    }
+    
+    public int calculateRecordSize() {
+        return numSignals * numSamplesPerSignal * signalDataSize;
     }
 }

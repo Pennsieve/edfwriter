@@ -4,6 +4,7 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import edu.upenn.cis.eeg.mef.mefstreamer.FieldDetails;
 
 
 
@@ -23,6 +24,7 @@ public class EDFHeaderWriter {
     
     
     private String[] signalLabels;
+    private String[] transducerType;
     private String[] signalPhysicalDimensions;
     private double[] signalPhysicalMin;
     private double[] signalPhysicalMax;
@@ -30,10 +32,11 @@ public class EDFHeaderWriter {
     private double[] signalDigitalMax;
     private  String[] prefiltering;
     private String[] numSamples;
-    private String File;
+    private String filePath;
+    private final HashMap<String, FieldDetails> fieldMetadata;
     
-	public EDFHeaderWriter(String Input, HashMap<String, Object> arguments) {
-        this.File = Input;
+	public EDFHeaderWriter(String filePath, HashMap<String, Object> arguments) {
+        this.filePath = filePath;
 		// Need to update this with values from main
         this.version = "0";          // 8 bytes
         this.patientID = (String)arguments.get("SubjID"); // 80 bytes
@@ -51,32 +54,49 @@ public class EDFHeaderWriter {
         System.out.println("numRecords " + this.numRecords);
         
         
-        this.signalLabels = new String[32]; // Signal labels
-        this.signalPhysicalDimensions = new String[32]; // Signal dimensions
-        this.signalPhysicalMin = new double[32]; // Physical min values
-        this.signalPhysicalMax = new double[32]; // Physical max values
-        this.signalDigitalMin = new double[32]; // Digital min values
-        this.signalDigitalMax = new double[32]; // Digital max values
-        this.prefiltering = new String[32]; // Prefiltering
-        this.numSamples = new String[32]; // Samples per signal
+        this.signalLabels = new String[this.numSignals]; // Signal labels
+        this.signalPhysicalDimensions = new String[this.numSignals]; // Signal dimensions
+        this.transducerType = new String[this.numSignals]; // Transducer type
+        this.signalPhysicalMin = new double[this.numSignals]; // Physical min values
+        this.signalPhysicalMax = new double[this.numSignals]; // Physical max values
+        this.signalDigitalMin = new double[this.numSignals]; // Digital min values
+        this.signalDigitalMax = new double[this.numSignals]; // Digital max values
+        this.prefiltering = new String[this.numSignals]; // Prefiltering
+        this.numSamples = new String[this.numSignals]; // Samples per signal
 
         ArrayList<String> labels = ((ArrayList<String>)arguments.get("ChannelNames"));
         // Need to update this too
         for (int i = 0; i < numSignals; i++) {
             signalLabels[i] = labels.get(i); // 16 bytes each
-            signalPhysicalDimensions[i] = "uV      "; // 8 bytes each
+            signalPhysicalDimensions[i] = "uV"; // 8 bytes each
             signalPhysicalMin[i] = (double)arguments.get("Physicalmin"); // min physical value
             signalPhysicalMax[i] = (double)arguments.get("Physicalmax"); // max physical value
             signalDigitalMin[i] = -32768.0; // min digital value
             signalDigitalMax[i] = 32767.0; // max digital value
+            transducerType[i] = "Unknown"; // No prefiltering
             prefiltering[i] = ""; // No prefiltering
             numSamples[i] = String.valueOf(numSignals); // Number of samples in each record (4 bytes) 8 ascii spaces x num of samples
         }
+        
+        
+        fieldMetadata = new HashMap<>();
+
+        fieldMetadata.put("version", new FieldDetails(0, 8, String.class)); // 8 bytes
+        fieldMetadata.put("patientID", new FieldDetails(8, 80, String.class)); // 80 bytes
+        fieldMetadata.put("recordingID", new FieldDetails(88, 80, String.class)); // 80 bytes
+        fieldMetadata.put("startDate", new FieldDetails(168, 8, String.class)); // 8 bytes
+        fieldMetadata.put("startTime", new FieldDetails(176, 8, String.class)); // 8 bytes
+        fieldMetadata.put("numRecords", new FieldDetails(184, 8, Integer.class)); // 8 bytes
+        fieldMetadata.put("duration", new FieldDetails(192, 8, Long.class)); // 8 bytes
+        fieldMetadata.put("numSignals", new FieldDetails(200, 4, Integer.class)); // 4 bytes
+        fieldMetadata.put("numBytes", new FieldDetails(204, 8, Integer.class)); // 8 bytes
+            // Add mappings for signal-related fields here...
+       
 	
 	}
 	
 
-    public void write() {
+    public int write() {
 
         // Prepare the header byte array
         byte[] header = new byte[numBytes];
@@ -97,30 +117,30 @@ public class EDFHeaderWriter {
         
 
         // Signal data: each signal has a specific number of bytes to be written
-        for (int i = 0; i < numSignals; i++) {
-            offset = writeStringToHeader(signalLabels[i], header, offset, 16);
-            offset = writeStringToHeader("", header, offset, 80); //figure out electrode type
-            offset = writeStringToHeader(signalPhysicalDimensions[i], header, offset, 8);
-            offset = writeStringToHeader(String.format("%f", signalPhysicalMin[i]), header, offset, 8);
-            offset = writeStringToHeader(String.format("%f", signalPhysicalMax[i]), header, offset, 8);
-            offset = writeStringToHeader(String.format("%f", signalDigitalMin[i]), header, offset, 8);
-            offset = writeStringToHeader(String.format("%f", signalDigitalMax[i]), header, offset, 8);
-            offset = writeStringToHeader(prefiltering[i], header, offset, 80);
-            offset = writeStringToHeader(numSamples[i], header, offset, 8);
-            offset = writeStringToHeader("", header, offset, 32);
-        }
+        // **Write all fields sequentially as per EDF standard**
+        for (String label : signalLabels) offset = writeStringToHeader(label, header, offset, 16);
+        for (String type : transducerType) offset = writeStringToHeader(type, header, offset, 80);
+        for (String dim : signalPhysicalDimensions) offset = writeStringToHeader(dim, header, offset, 8);
+        for (double min : signalPhysicalMin) offset = writeStringToHeader(String.format("%.2f", min), header, offset, 8);
+        for (double max : signalPhysicalMax) offset = writeStringToHeader(String.format("%.2f", max), header, offset, 8);
+        for (double min : signalDigitalMin) offset = writeStringToHeader(String.format("%.0f", min), header, offset, 8);
+        for (double max : signalDigitalMax) offset = writeStringToHeader(String.format("%.0f", max), header, offset, 8);
+        for (String pre : prefiltering) offset = writeStringToHeader(pre, header, offset, 80);
+        for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
+        for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
 
         // Reserved: fill the last section with spaces
         //offset = writeStringToHeader("", header, offset, this.numSignals);
 
         // Write header to file
-        try (FileOutputStream out = new FileOutputStream(this.File)) {
+        try (FileOutputStream out = new FileOutputStream(this.filePath)) {
             out.write(header);
         } catch (IOException e) {
             e.printStackTrace();
         }
 
-        System.out.println("EDF header written successfully.");
+        System.out.println("EDF header written successfully." + offset +" bytes written");
+        return this.numBytes;
     }
 
     // Helper method to write a string to the header byte array
@@ -134,4 +154,52 @@ public class EDFHeaderWriter {
         }
         return offset + length;
     }
+    
+    // Experimental ...maybe use this for regular write. Not fully tested do not depend on
+    public void updateHeader(String fieldName, Object newValue) throws IOException {
+        FieldDetails fieldDetails = fieldMetadata.get(fieldName);
+
+        if (fieldDetails == null) {
+            throw new IllegalArgumentException("Field not found: " + fieldName);
+        }
+
+        // Prepare the header byte array
+        byte[] header = new byte[numBytes];
+        try (RandomAccessFile raf = new RandomAccessFile(this.filePath, "rw")) {
+            raf.seek(0); // Seek to the start of the header
+            raf.read(header); // Read the current header into the array
+
+            // Update field
+            String strValue = convertToString(newValue, fieldDetails.type);
+            writeStringToHeader(strValue, header, fieldDetails.offset, fieldDetails.length);
+
+            // Need to update header for these 2
+            if (fieldName.equals("numSignals") || fieldName.equals("numRecords")) {
+                // Update the total number of bytes in the header
+                numBytes = header.length;
+                writeStringToHeader(String.valueOf(numBytes), header, fieldMetadata.get("numBytes").offset, 8);
+            }
+
+            // re-write the header
+            raf.seek(0); 
+            raf.write(header); 
+        }
+    }
+
+    // Convert types to strings
+    private String convertToString(Object value, Class<?> type) {
+        if (type == String.class) {
+            return (String) value; 
+        } else if (type == Integer.class) {
+            return String.format("%d", (Integer) value); 
+        } else if (type == Long.class) {
+            return String.format("%d", (Long) value); 
+        } else if (type == Double.class) {
+            return String.format("%.2f", (Double) value);
+        } else {
+            throw new IllegalArgumentException("Unsupported field type: " + type);
+        }
+    }
+    
+
 }
