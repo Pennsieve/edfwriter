@@ -68,8 +68,8 @@ public class EDFBuilder{
         
         // Initialize variables for counter/startdate/starttime
 		int counter = 1;
-		String startdate;
-		String starttime;
+		String startdate = "";
+		String starttime = "";
 		File[] filesminusfirst = new File[this.files.length - 1];
 		
 		
@@ -106,7 +106,8 @@ public class EDFBuilder{
                     int pagesum = 0;
                     boolean mintimevalue = false;
                     long absStartTime = 0;
-                    int numforloop = 0;
+                    int startrange = 0;
+                    int endrange = 0;
                 
                 
                 // Loop over each block in the first mef file
@@ -135,12 +136,13 @@ public class EDFBuilder{
                 				mintimevalue = true;
                         }
                         long timeDifference = nextBlockStartTime - lastEntryTime;
-                        numforloop++;
-                        int newstartingvalue=0;
+                        endrange++;
+                        
                         // Write the first mef file data here 
                         // Where should this go?
                 		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
                 		EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+                		dataWriter.write();
                         
                         // Check if the time difference requires a new file (or new channel)
                         if (timeDifference > 2 * timeIncrement) {
@@ -150,39 +152,43 @@ public class EDFBuilder{
                         	// Loops through the rest of the mef files 
                         	for (File inputFile : filesminusfirst) {
                         		// Loops through the blocks that the first mef file got through
-                        		// Need to determine how this works bc it can only take one input value 
-                        		// So will it start where it left off? probably not 
-                        		// If I give it a random integer is is just going to pull that many from the start?
-                        		for (TimeSeriesPage page : streamer.getNextBlocks((int)numforloop)) {
+                        		int subcounter = 0;
+                        		for (TimeSeriesPage subpage : streamer.getNextBlocks((int) numBlocks)) {
+
+                        			if (subcounter < startrange || subcounter > endrange) {
+                        				subcounter++;
+                        				continue;
+                        			}
                         			// Write data to edf here too
-                        			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+                        			EDFDataWriter subdataWriter =  new EDFDataWriter(outputEDF, arguments);
                                     // Update running max and min based on the current block's values
-                                    for (double value : page.values) {
+                                    for (double value : subpage.values) {
                                         runningMax = Math.max(runningMax, value);
                                         runningMin = Math.min(runningMin, value);
                                      } 
+                                    subcounter++;
                         		}
-                        		// Write out data into the edf
-                                arguments = new HashMap<>();
-                                arguments.put("Physicalmax", runningMax);
-                                arguments.put("Physicalmin", runningMin);
-                                arguments.put("SubjID", subjectid);
-                                arguments.put("Signalnum", numsignals);
-                                arguments.put("StartDate", startdate);
-                                arguments.put("StartTime", starttime);
-                                arguments.put("Duration", duration); // Needs to be updated
-                                arguments.put("Recordsnum", pagesum); // Needs to be updated
-                                arguments.put("ChannelNames", channelnames);
-                                
-                                // Write header for the new file
-                                EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-                                int headerSize = 0;
+
                         		}
-                        	// Might need to take this out	
-                        	numforloop=0;	
+                    		// Write out data into the edf
+                            arguments = new HashMap<>();
+                            arguments.put("Physicalmax", runningMax);
+                            arguments.put("Physicalmin", runningMin);
+                            arguments.put("SubjID", subjectid);
+                            arguments.put("Signalnum", numsignals);
+                            arguments.put("StartDate", startdate);
+                            arguments.put("StartTime", starttime);
+                            arguments.put("Duration", duration); // Needs to be updated
+                            arguments.put("Recordsnum", pagesum); // Needs to be updated
+                            arguments.put("ChannelNames", channelnames);
+                            
+                            // Write header for the new file
+                            EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
+                            headerWriter.write(path);
+                            int headerSize = 0;
                         	counter++;
                         
-                        	
+                        	startrange = endrange;
                         	}
                 		}
                 	previousPage = page;
