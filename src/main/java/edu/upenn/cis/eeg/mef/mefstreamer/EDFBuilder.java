@@ -7,6 +7,7 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
@@ -63,8 +64,8 @@ public class EDFBuilder{
 
 		
 		// Initialize variables for runningMax/runningMin
-		double runningMax = Double.NEGATIVE_INFINITY;
-        double runningMin = Double.POSITIVE_INFINITY;
+		double runningMax = 1;
+        double runningMin = -1;
         
         // Initialize variables for counter/startdate/starttime
 		int counter = 1;
@@ -84,6 +85,7 @@ public class EDFBuilder{
         try (RandomAccessFile file = new RandomAccessFile(path, "r")) {
         	MEFStreamer streamer = new MEFStreamer(file);
         	MefHeader2 header = streamer.getMEFHeader();
+        	int currentOffset = 0;
                 
                 // Write values to CSV
                 try (BufferedWriter shiftWriter = new BufferedWriter(new FileWriter(shiftFileName))) {
@@ -109,9 +111,27 @@ public class EDFBuilder{
                     int startrange = 0;
                     int endrange = 0;
                 
+                    arguments = new HashMap<>();
+                    arguments.put("Physicalmax", runningMax);
+                    arguments.put("Physicalmin", runningMin);
+                    arguments.put("SubjID", subjectid);
+                    arguments.put("Signalnum", numsignals);
+                    arguments.put("StartDate", startdate);
+                    arguments.put("StartTime", starttime);
+                    arguments.put("Duration", 1l); // Needs to be updated
+                    arguments.put("Recordsnum", -1); // Needs to be updated
+                    arguments.put("ChannelNames", channelnames);
                 
                 // Loop over each block in the first mef file
                 for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
+                	MefHeader2 mefHeader = streamer.getMEFHeader();
+                	
+                	// Get min and max from MEF header
+            		runningMax = Arrays.stream(page.values).min().orElseThrow();
+                    runningMin = Arrays.stream(page.values).max().orElseThrow();
+                    arguments.put("Physicalmax", runningMax);
+                    arguments.put("Physicalmin", runningMin);
+                    
                 	if (previousPage == null) {
                 		absStartTime = page.timeStart;
                 		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
@@ -121,20 +141,19 @@ public class EDFBuilder{
                 		starttime = tokenizer.nextToken();
              
                 	}
-                		
-                		else {
-                			pagesum += page.values.length;
-                			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
-                			long nextBlockStartTime = page.timeStart;
-                			if (mintimevalue == false) {
-                				absStartTime = page.timeStart;
-                				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
-                    			// can be improved 
-                				StringTokenizer tokenizer = new StringTokenizer(date, " ");
-                				startdate = tokenizer.nextToken();
-                				starttime = tokenizer.nextToken();
-                				mintimevalue = true;
-                        }
+            		else {
+            			pagesum += page.values.length;
+            			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
+            			long nextBlockStartTime = page.timeStart;
+            			if (mintimevalue == false) {
+            				absStartTime = page.timeStart;
+            				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+                			// can be improved 
+            				StringTokenizer tokenizer = new StringTokenizer(date, " ");
+            				startdate = tokenizer.nextToken();
+            				starttime = tokenizer.nextToken();
+            				mintimevalue = true;
+            			}
                         long timeDifference = nextBlockStartTime - lastEntryTime;
                         endrange++;
                         
@@ -142,10 +161,15 @@ public class EDFBuilder{
                         // Where should this go?
                 		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
                 		EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-                		dataWriter.write();
+                		dataWriter.write(currentOffset,page.values);
+                		currentOffset += dataWriter.calculateRecordSize();
                         
                         // Check if the time difference requires a new file (or new channel)
                         if (timeDifference > 2 * timeIncrement) {
+                        	// write out to CSV
+                        	long timeshift = (long) (timeDifference - timeIncrement);
+                        	shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
+                        	
                         	long endblocktime = page.timeEnd;
                         	long duration = (endblocktime - absStartTime)/1000000;
                         	
@@ -178,14 +202,14 @@ public class EDFBuilder{
                             arguments.put("Signalnum", numsignals);
                             arguments.put("StartDate", startdate);
                             arguments.put("StartTime", starttime);
-                            arguments.put("Duration", duration); // Needs to be updated
-                            arguments.put("Recordsnum", pagesum); // Needs to be updated
+                            arguments.put("Duration", duration);
+                            arguments.put("Recordsnum", pagesum);
                             arguments.put("ChannelNames", channelnames);
                             
                             // Write header for the new file
                             EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-                            headerWriter.write(path);
-                            int headerSize = 0;
+                            headerWriter.write(outputEDF);
+
                         	counter++;
                         
                         	startrange = endrange;
@@ -197,69 +221,6 @@ public class EDFBuilder{
         } catch (IOException e) {
             e.printStackTrace();
         }
-               
-                        
-                   //         if (edfFile != null) {
-                                // Close the current EDF file
-                     //           edfFile.close();
-                    //        }
-                           
-        	
-		
-		// for page in filepath[0] done
-		
-			//check for discontinuity done
-		
-			// if discontinuity = true done
-				
-				// update size of data to read ()
-		
-				// for remaining mef files [1-end]
-					
-					// write data()
-		
-				// write header to start of file ()
-		
-			// write data to file () - only writes if no discontinuity 
-		
-		// write header to start of file ()
-		
-
-                
-             //   System.out.println("Block Header Length: " + header.getBlockHeaderLength());
-               // System.out.println("Block interval: " + header.getBlockInterval());
-                //System.out.println("Discontinuity Offset: " + header.getDiscontinuityDataOffset());
-             //   System.out.println("GMT Offset: " + header.getGmtOffset());
-               // System.out.println("Header Length: " + header.getHeaderLength());
-             //   System.out.println("Number of Discontinuities: " + header.getNumberOfDiscontinuityEntries());
-               // System.out.println("No. Samples: " + header.getNumberOfSamples());
-              //  System.out.println("Start time: " + header.getRecordingStartTime());
-               // System.out.println("SEnd Time: " + header.getRecordingEndTime());
-                
-
-                //System.out.println("Num Blocks: " + numBlocks + " blocks.");
-                
-
-            	//System.out.println("Sampling frequency: " + samplingfreq);
-            	
-            	//System.out.println("Time increment: " + timeIncrement);
 	}
 }
-
-                
-     
-                
-                
-              // IDK what some of this is  
-             //   int currentOffset = headerSize;
-          
-                
-              //  for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
-                	
-                //	System.out.println("Page Len: "+ page.values.length);
-                	
-                //	if (page.values.length > 1) {
-                   // 	pageSum+= page.values.length;
-                    	//dataWriter.write(currentOffset, page.values);
-                    	//currentOffset += dataWriter.calculateRecordSize();
                 	

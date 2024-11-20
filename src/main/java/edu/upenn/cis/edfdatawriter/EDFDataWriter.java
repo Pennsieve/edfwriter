@@ -24,51 +24,46 @@ public class EDFDataWriter {
     }
 
     public void write(int offset, int[] values) {
+        // Create a single-dimensional array for signal data
+        short[] data = new short[values.length];
 
-        
-        // Add actual data from main
-    	short[][] data = new short[numSignals][numSamplesPerSignal];
-    	for (int i = 0; i < numSignals; i++) {
-    	    for (int j = 0; j < values.length && j < numSamplesPerSignal; j++) {
-    	        data[i][j] = (short) values[j];  
-    	    }
-    	}
+        // Convert int values to short and store them in the data array
+        for (int i = 0; i < values.length; i++) {
+            data[i] = (short) values[i];  // Convert int to short (clipping may happen here if values are too large)
+        }
 
         // Open EDF file in append mode
         try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
-            // Seek to the point after the 256-byte header (typically starting at byte 256)
-            // do not hard code this
-        	raf.seek(offset);
+            // Seek to the point after the 256-byte header (don't hard-code this)
+            raf.seek(offset);
 
-            // Write data records
-            for (int record = 0; record < values.length; record++) {
-                writeDataRecord(raf, data, numSignals, numSamplesPerSignal, signalDataSize);
-            }
+            // Write data records (we only need to write one record here because we are working with a flat data array)
+            writeDataRecord(raf, data, values.length); // Pass the flat data array
             raf.close();
 
             System.out.println("Data records written successfully.");
         } catch (IOException e) {
             e.printStackTrace();
         }
-    } 
+    }
+
 
     /**
-     * Writes a single data record to the EDF file.
+     * Writes a single data record to the EDF file using a single-dimensional array.
      */
-    private static void writeDataRecord(RandomAccessFile raf, short[][] data, int numSignals, int numSamplesPerSignal, int signalDataSize) throws IOException {
-        ByteBuffer buffer = ByteBuffer.allocate(numSignals * numSamplesPerSignal * signalDataSize);
+    private static void writeDataRecord(RandomAccessFile raf, short[] data, int numSamples) throws IOException {
+        ByteBuffer buffer = ByteBuffer.allocate(numSamples * Short.BYTES); // numSamples * size of short
         buffer.order(ByteOrder.LITTLE_ENDIAN); // Ensure data is written in little-endian byte order
-        
-        // Write the data for each signal in the record
-        for (int i = 0; i < numSignals; i++) {
-            for (int j = 0; j < numSamplesPerSignal; j++) {
-                buffer.putShort(data[i][j]); // Write 16-bit signed integer data
-            }
+
+        // Write the data into the buffer (no nested loops needed for a single array)
+        for (int i = 0; i < numSamples; i++) {
+            buffer.putShort(data[i]); // Write 16-bit signed integer data (short)
         }
 
         // Write the record to the file
         raf.write(buffer.array());
     }
+
     
     public int calculateRecordSize() {
         return numSignals * numSamplesPerSignal * signalDataSize;
