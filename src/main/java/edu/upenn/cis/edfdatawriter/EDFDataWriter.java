@@ -41,7 +41,7 @@ public class EDFDataWriter {
             writeDataRecord(raf, data, values.length); // Pass the flat data array
             raf.close();
 
-            System.out.println("Data records written successfully.");
+            //System.out.println("Data records written successfully.");
         } catch (IOException e) {
             e.printStackTrace();
         }

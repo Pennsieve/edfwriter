@@ -19,8 +19,8 @@ public class EDFHeaderWriter {
     private long duration;
     private int numSignals;
     private int numBytes;
-    private final double DIGITAL_MIN = -32768; // Hardcoded. Min size of possible data using 2 bytes (Short)
-    private final double DIGITAL_MAX = 32767; // Hardcoded. Max size of possible data using 2 bytes (Short)
+    private double Digital_Min; // Hardcoded. Min size of possible data using 2 bytes (Short)
+    private double Digital_Max; // Hardcoded. Max size of possible data using 2 bytes (Short)
     
     
     private String[] signalLabels;
@@ -65,8 +65,8 @@ public class EDFHeaderWriter {
             signalPhysicalDimensions[i] = "uV"; // 8 bytes each
             signalPhysicalMin[i] = (double)arguments.get("Physicalmin"); // min physical value
             signalPhysicalMax[i] = (double)arguments.get("Physicalmax"); // max physical value
-            signalDigitalMin[i] = this.DIGITAL_MIN; 
-            signalDigitalMax[i] = this.DIGITAL_MAX ; 
+            signalDigitalMin[i] = (double)arguments.get("Physicalmin"); 
+            signalDigitalMax[i] = (double)arguments.get("Physicalmax");
             transducerType[i] = "Unknown"; // No prefiltering
             prefiltering[i] = ""; // No prefiltering
             numSamples[i] = String.valueOf(numSignals); // Number of samples in each record (4 bytes) 8 ascii spaces x num of samples
