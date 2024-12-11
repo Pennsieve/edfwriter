@@ -163,13 +163,16 @@ public class EDFBuilder{
                 		EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
                 		dataWriter.write(currentOffset,page.values);
                 		currentOffset += dataWriter.calculateRecordSize();
+                		
+                		// Write out to csv
+                		if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
+                            long timeshift = (long) (timeDifference - timeIncrement);
+                            shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
+                        }
                         
                         // Check if the time difference requires a new file (or new channel)
                         if (timeDifference > 2 * timeIncrement) {
-                        	// write out to CSV
-                        	long timeshift = (long) (timeDifference - timeIncrement);
-                        	shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
-                        	
+                        	System.out.println("Discontinuity Found: " + page.timeStart);
                         	long endblocktime = page.timeEnd;
                         	long duration = (endblocktime - absStartTime)/1000000;
                         	
