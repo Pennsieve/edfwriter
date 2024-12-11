@@ -1,0 +1,27 @@
+
+# Ignore all .class files
+*.class
+
+# Ignore Maven and Gradle output directories
+/target/
+/build/
+
+# Ignore IntelliJ IDEA project files
+.idea/
+*.iml
+
+# Ignore Eclipse project files
+.project
+.classpath
+.settings/
+
+# Ignore VSCode project files
+.vscode/
+
+# Ignore logs
+*.log
+
+# Ignore OS-generated files
+.DS_Store
+Thumbs.db
+
