@@ -71,8 +71,7 @@ public class EDFBuilder{
 		int counter = 1;
 		String startdate = "";
 		String starttime = "";
-		File[] filesminusfirst = new File[this.files.length - 1];
-		
+		File[] filesminusfirst = new File[this.files.length - 1];	
 		
 		// Create variable that excludes the first mef file
 		System.arraycopy(this.files, 1, filesminusfirst, 0, this.files.length - 1);
@@ -127,8 +126,8 @@ public class EDFBuilder{
                 	MefHeader2 mefHeader = streamer.getMEFHeader();
                 	
                 	// Get min and max from MEF header
-            		runningMax = Arrays.stream(page.values).min().orElseThrow();
-                    runningMin = Arrays.stream(page.values).max().orElseThrow();
+            		runningMax = Arrays.stream(page.values).min().orElseThrow(null); //fixed error here by making elsethrow null
+                    runningMin = Arrays.stream(page.values).max().orElseThrow(null); //fixed error here by making elsethrow null
                     arguments.put("Physicalmax", runningMax);
                     arguments.put("Physicalmin", runningMin);
                     
@@ -159,7 +158,13 @@ public class EDFBuilder{
                         
                         // Write the first mef file data here 
                         // Where should this go?
-                		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
+                		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf"; 
+                		//delete existing files before rerunning!
+                		File delFile = new File(outputEDF); //opens file
+                		if (delFile.exists()) {
+                			delFile.delete();
+                		}
+                			               		
                 		EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
                 		dataWriter.write(currentOffset,page.values);
                 		currentOffset += dataWriter.calculateRecordSize();
@@ -175,7 +180,6 @@ public class EDFBuilder{
                         	System.out.println("Discontinuity Found: " + page.timeStart);
                         	long endblocktime = page.timeEnd;
                         	long duration = (endblocktime - absStartTime)/1000000;
-                        	
                         	// Loops through the rest of the mef files 
                         	for (File inputFile : filesminusfirst) {
                         		// Loops through the blocks that the first mef file got through
@@ -205,7 +209,7 @@ public class EDFBuilder{
                             arguments.put("Signalnum", numsignals);
                             arguments.put("StartDate", startdate);
                             arguments.put("StartTime", starttime);
-                            arguments.put("Duration", duration);
+                            arguments.put("Duration", duration);						
                             arguments.put("Recordsnum", pagesum);
                             arguments.put("ChannelNames", channelnames);
                             
