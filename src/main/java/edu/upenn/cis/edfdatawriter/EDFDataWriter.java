@@ -35,7 +35,7 @@ public class EDFDataWriter {
         // Open EDF file in append mode
         try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
             // Seek to the point after the 256-byte header (don't hard-code this)
-            raf.seek(offset);
+            raf.seek(raf.length());
 
             // Write data records (we only need to write one record here because we are working with a flat data array)
             writeDataRecord(raf, data, values.length); // Pass the flat data array
