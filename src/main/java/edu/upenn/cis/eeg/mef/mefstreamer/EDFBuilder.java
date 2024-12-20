@@ -77,8 +77,7 @@ public class EDFBuilder{
 		int counter = 1;
 		String startdate = "";
 		String starttime = "";
-		File[] filesminusfirst = new File[this.files.length - 1];
-		
+		File[] filesminusfirst = new File[this.files.length - 1];	
 		
 		// Create variable that excludes the first mef file
 		System.arraycopy(this.files, 1, filesminusfirst, 0, this.files.length - 1);
@@ -135,6 +134,7 @@ public class EDFBuilder{
                 	MefHeader2 mefHeader = streamer.getMEFHeader();
                 	
                 	// Get min and max from MEF header
+
             		localMin = Arrays.stream(page.values).min().orElseThrow();
                     localMax = Arrays.stream(page.values).max().orElseThrow();
                     if (localMax > runningMax) {
@@ -154,6 +154,7 @@ public class EDFBuilder{
                    // long numentries = ((page.timeEnd - page.timeStart) * (1/512));
                     //System.out.println("Num Entries Calculated: " + numentries);
                    // System.out.println("Page Sum: " + pagesum);
+
                     
                 	if (previousPage == null) {
                 		absStartTime = page.timeStart;
@@ -199,12 +200,14 @@ public class EDFBuilder{
                         
                         // Write the first mef file data here 
                         // Where should this go?
+
                 		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
                 		//EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
                 		// How to scale all the values? maybe not just writing them out here 
                 		// Probably need to not write data until  we have the range of all the data we are writing?
                 		//dataWriter.write(currentOffset,page.values);
                 		
+
                 		
                 		// Write out to csv
                 		if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
@@ -221,7 +224,6 @@ public class EDFBuilder{
                         	System.out.println("Discontinuity Found: " + page.timeStart);
                         	long endblocktime = page.timeEnd;
                         	long duration = (endblocktime - absStartTime)/1000000;
-                        	
                         	// Loops through the rest of the mef files 
                         	for (File inputFile : filesminusfirst) {
                         		// Loops through the blocks that the first mef file got through
@@ -290,7 +292,7 @@ public class EDFBuilder{
                             arguments.put("Signalnum", numsignals);
                             arguments.put("StartDate", startdate);
                             arguments.put("StartTime", starttime);
-                            arguments.put("Duration", duration);
+                            arguments.put("Duration", duration);						
                             arguments.put("Recordsnum", pagesum);
                             arguments.put("ChannelNames", channelnames);
                             
