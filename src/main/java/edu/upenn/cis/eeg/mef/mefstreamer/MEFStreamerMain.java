@@ -20,13 +20,13 @@ public class MEFStreamerMain {
     public static void main(String[] args) {
         // Check for file path argument
         if (args.length < 1) {
-            System.out.println("Usage: java -jar <jarfile> <Pathdir>");
+            System.out.println("Usage: java <SubjPathdir>");
             return;
         }
         
         String directoryPath = args[0];
         File directory = new File(directoryPath);
-        String subjectid = directory.getName(); //
+        String subjectid = directory.getName(); // Subject ID corresponds to the name of the directory mef files are within
         // count number of mef files 
         int numsignals;
         String startdate = null;
@@ -41,9 +41,10 @@ public class MEFStreamerMain {
 
         // List all .mef files in the directory
         File[] mefFiles = directory.listFiles((dir, name) -> name.toLowerCase().endsWith(".mef"));
-        
+       
+        // Number of channels (aka the number of mef files within directory) 
         numsignals = mefFiles.length;
-        
+ 
         if (mefFiles == null || mefFiles.length == 0) {
             System.out.println("No .mef files found in the specified directory.");
             return;
