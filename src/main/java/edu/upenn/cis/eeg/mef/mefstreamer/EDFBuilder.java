@@ -119,15 +119,15 @@ public class EDFBuilder{
                     int endrange = 0;
                     // Don't know if we need this
                     arguments = new HashMap<>();
-                    //arguments.put("Physicalmax", runningMax);
-                    //arguments.put("Physicalmin", runningMin);
-                    //arguments.put("SubjID", subjectid);
-                    //arguments.put("Signalnum", numsignals);
-                    //arguments.put("StartDate", startdate);
-                    //arguments.put("StartTime", starttime);
-                    //arguments.put("Duration", 1l); // Needs to be updated
+                    arguments.put("Physicalmax", runningMax);
+                    arguments.put("Physicalmin", runningMin);
+                    arguments.put("SubjID", subjectid);
+                    arguments.put("Signalnum", numsignals);
+                    arguments.put("StartDate", startdate);
+                    arguments.put("StartTime", starttime);
+                   // arguments.put("Duration", 1l); // Needs to be updated
                     //arguments.put("Recordsnum", -1); // Needs to be updated
-                    //arguments.put("ChannelNames", channelnames);
+                    arguments.put("ChannelNames", channelnames);
                 
                 // Loop over each block in the first mef file
                 for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
@@ -150,6 +150,7 @@ public class EDFBuilder{
                     // Get number of entries on page and add to variable
                     // Adds the number of entries for each block over time
                     pagesum += page.values.length;
+                    arguments.put("Recordsnum", pagesum);
                    // System.out.println("Page Sum: " + pagesum);
                    // long numentries = ((page.timeEnd - page.timeStart) * (1/512));
                     //System.out.println("Num Entries Calculated: " + numentries);
@@ -163,7 +164,9 @@ public class EDFBuilder{
                 		// can be improved 
                 		StringTokenizer tokenizer = new StringTokenizer(date, " ");
                 		startdate = tokenizer.nextToken();
+                		arguments.put("StartDate", startdate);
                 		starttime = tokenizer.nextToken();
+                		arguments.put("StartTime", starttime);
                         double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
                         double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq);
                         System.out.println("Num Entries Calculated: " + numentries);
@@ -202,6 +205,11 @@ public class EDFBuilder{
                         // Where should this go?
 
                 		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
+                      	//delete existing files before rerunning!
+                    	File delFile = new File(outputEDF); //opens file
+                    	if (delFile.exists()) {
+                    		delFile.delete();
+                    	}
                 		//EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
                 		// How to scale all the values? maybe not just writing them out here 
                 		// Probably need to not write data until  we have the range of all the data we are writing?
@@ -224,11 +232,16 @@ public class EDFBuilder{
                         	System.out.println("Discontinuity Found: " + page.timeStart);
                         	long endblocktime = page.timeEnd;
                         	long duration = (endblocktime - absStartTime)/1000000;
-                        	// Loops through the rest of the mef files 
+                        	arguments.put("Duration", duration);
+                        	// Loops through the rest of the mef files, to get all of the mins/maxes
                         	for (File inputFile : filesminusfirst) {
                         		// Loops through the blocks that the first mef file got through
                         		int subcounter = 0;
-                        		for (TimeSeriesPage subpage : streamer.getNextBlocks((int) numBlocks)) {
+                        		String subpath = inputFile.getAbsolutePath();
+                        		RandomAccessFile subFile = new RandomAccessFile(subpath,"r");
+                        		MEFStreamer substreamer = new MEFStreamer(subFile);
+                        		List<TimeSeriesPage> subpages = substreamer.getNextBlocks((int) numBlocks);
+                        		for (TimeSeriesPage subpage : subpages) {
                         			// Start range begins at 0 and helps to define the range of values for each 
                         			// new edf file, the code will iterate through each value and update the start range 
                         			// until 
@@ -238,52 +251,56 @@ public class EDFBuilder{
                         			}
 
                                     // Update running max and min based on the current block's values
-                                    for (double value : subpage.values) {
-                                		localMin = Arrays.stream(subpage.values).min().orElseThrow();
-                                        localMax = Arrays.stream(subpage.values).max().orElseThrow();
-                                        if (localMax > runningMax) {
-                                        	runningMax = localMax;
-                                        	arguments.put("Physicalmax", localMax);
-                                        }
-                                        if (localMin < runningMin) {
-                                        	runningMin = localMin;
-                                        	arguments.put("Physicalmin", localMin);
-                                        }
-        
-                                     } 
-                        		}
-                                    
-                        			// Write data to edf here too
-                        		for (File currentFile: this.files); {
-                        			int subtwocounter = 0;
-                        			for (TimeSeriesPage subpage: streamer.getNextBlocks((int) numBlocks)) {
-                        				if (subtwocounter < startrange || subtwocounter > endrange) {
-                            				subtwocounter++;
-                            				continue;
-                        				}
-                        				
-                                	//delete existing files before rerunning!
-                                	File delFile = new File(outputEDF); //opens file
-                                	if (delFile.exists()) {
-                                		delFile.delete();
-                                	}
-                        			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-                        			double scalingfactor = (runningMax - runningMin)/(physicalMax  - physicalMin);
-                                    for (int i =0; i < page.values.length; i++) {
-                                    	page.values[i] = (int) (scalingfactor * page.values[i]);
+                                  //  for (double value : subpage.values) {
+                            		localMin = Arrays.stream(subpage.values).min().orElseThrow();
+                                    localMax = Arrays.stream(subpage.values).max().orElseThrow();
+                                    if (localMax > runningMax) {
+                                    	runningMax = localMax;
+                                    	arguments.put("Physicalmax", localMax);
                                     }
-  
-                        			dataWriter.write(currentOffset,page.values);
-                        			currentOffset += dataWriter.calculateRecordSize();
-                        		
+                                    if (localMin < runningMin) {
+                                    	runningMin = localMin;
+                                    	arguments.put("Physicalmin", localMin);
                                     }
-                                    
-                            		
                                     subcounter++;
-                                    subtwocounter++;
+                                    substreamer.close();
+                                     
                         		}
+                                    
 
-                        		}
+
+                    		}
+                    		// This is the final write step after looping through all mins/maxes
+                    		// Re-opens all channels (mef files) to scale and write to edf
+                    		for (File currentFile : this.files) {
+                    			int subtwocounter = 0;
+                        		String currentpath = currentFile.getAbsolutePath();
+                        		RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
+                    			MEFStreamer subtwostreamer = new MEFStreamer(currenttwoFile);
+                    			for (TimeSeriesPage subpage: subtwostreamer.getNextBlocks((int) numBlocks)) {
+                    				if (subtwocounter < startrange || subtwocounter > endrange) {
+                        				subtwocounter++;
+                        				continue;
+                    				}
+                    				
+      
+                    			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+                    			double scalingfactor = (runningMax - runningMin)/(physicalMax  - physicalMin);
+                                for (int i =0; i < subpage.values.length; i++) {
+                                	subpage.values[i] = (int) (scalingfactor * subpage.values[i]);
+                                }
+
+                    			dataWriter.write(currentOffset,subpage.values);
+                    			currentOffset += dataWriter.calculateRecordSize();
+                    		
+                                }
+                                
+                        		
+                                
+                                subtwocounter++;
+                                subtwostreamer.close();
+                    		}
+                        	
                     		// Write out data into the edf
                             arguments = new HashMap<>();
                             arguments.put("Physicalmax", runningMax);
@@ -303,6 +320,9 @@ public class EDFBuilder{
                         	counter++;
                         
                         	startrange = endrange;
+                            // Need to move this to be in the right place which is not below previous page
+                            runningMax = 1; 
+                        	runningMin = -1; 
                         	}
                 		}
                 	previousPage = page;
@@ -311,9 +331,7 @@ public class EDFBuilder{
                 }
                 pagesum = 0;
                 
-                // Need to move this to be in the right place which is not below previous page
-                runningMax = 1; 
-            	runningMin = -1; 
+
             }
         } catch (IOException e) {
             e.printStackTrace();
