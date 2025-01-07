@@ -74,7 +74,7 @@ public class EDFBuilder{
         double digitalMin = -32767;
         
         // Initialize variables for counter/startdate/starttime
-		int counter = 1;
+		int counter = 0;
 		String startdate = "";
 		String starttime = "";
 		File[] filesminusfirst = new File[this.files.length - 1];	
@@ -152,7 +152,8 @@ public class EDFBuilder{
                     // Get number of entries on page and add to variable
                     // Adds the number of entries for each block over time
                     pagesum += page.values.length;
-                    arguments.put("Recordsnum", pagesum);
+                    int recordsnum = pagesum * numsignals;
+                    arguments.put("Recordsnum", recordsnum);
                    // System.out.println("Page Sum: " + pagesum);
                    // long numentries = ((page.timeEnd - page.timeStart) * (1/512));
                     //System.out.println("Num Entries Calculated: " + numentries);
@@ -193,7 +194,7 @@ public class EDFBuilder{
             			//System.out.println("page time start: " + page.timeStart);
             			double calculated_sampfreq = pagesum/((page.timeStart - abs_starttime)*10e-6);
             			//System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-            			if (calculated_sampfreq > 2 * samplingfreq);{
+            			if (calculated_sampfreq > (2 * samplingfreq)){
                 			System.out.println("Page Sum: " + pagesum);
                 			System.out.println("page time start: " + page.timeStart);
                 			System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
@@ -312,10 +313,11 @@ public class EDFBuilder{
                             arguments.put("StartDate", startdate);
                             arguments.put("StartTime", starttime);
                             arguments.put("Duration", duration);						
-                            arguments.put("Recordsnum", pagesum);
+                            arguments.put("Recordsnum", (pagesum * numsignals));
                             arguments.put("ChannelNames", channelnames);
                             arguments.put("DigitalMin", digitalMin);
                             arguments.put("DigitalMax", digitalMax);
+                            arguments.put("NumSamples",pagesum);
                             
                             
                             // Write header for the new file

@@ -16,6 +16,7 @@ public class EDFHeaderWriter {
     private String startDate;
     private String startTime;
     private int numRecords;
+    private int NumSamples;
     private long duration;
     private int numSignals;
     private int numBytes;
@@ -44,6 +45,7 @@ public class EDFHeaderWriter {
         this.startDate = (String)arguments.get("StartDate");    // 8 bytes
         this.startTime = (String)arguments.get("StartTime");        // 8 bytes
         this.numRecords = (int)arguments.get("Recordsnum");      // 8 bytes
+        this.NumSamples = (int)arguments.get("NumSamples");
         this.duration = (long)arguments.get("Duration");         // 8 bytes
         this.numSignals = (int)arguments.get("Signalnum");        // 4 byte
         this.numBytes = (numSignals*256) + 256;
@@ -69,7 +71,7 @@ public class EDFHeaderWriter {
             signalDigitalMax[i] = (double)arguments.get("DigitalMax");
             transducerType[i] = "Unknown"; // No prefiltering
             prefiltering[i] = ""; // No prefiltering
-            numSamples[i] = String.valueOf(numSignals); // Number of samples in each record (4 bytes) 8 ascii spaces x num of samples
+            numSamples[i] = String.valueOf(NumSamples); // Number of samples in each record (4 bytes) 8 ascii spaces x num of samples
         }
         
         
