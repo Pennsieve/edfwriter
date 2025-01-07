@@ -70,8 +70,8 @@ public class EDFBuilder{
         double localMin = -1;
         double localMax = 1;
         
-        double physicalMax = 32767;
-        double physicalMin = -32767;
+        double digitalMax = 32767;
+        double digitalMin = -32767;
         
         // Initialize variables for counter/startdate/starttime
 		int counter = 1;
@@ -125,6 +125,8 @@ public class EDFBuilder{
                     arguments.put("Signalnum", numsignals);
                     arguments.put("StartDate", startdate);
                     arguments.put("StartTime", starttime);
+                    arguments.put("DigitalMin", digitalMin);
+                    arguments.put("DigitalMax", digitalMax);
                    // arguments.put("Duration", 1l); // Needs to be updated
                     //arguments.put("Recordsnum", -1); // Needs to be updated
                     arguments.put("ChannelNames", channelnames);
@@ -285,7 +287,7 @@ public class EDFBuilder{
                     				
       
                     			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-                    			double scalingfactor = (runningMax - runningMin)/(physicalMax  - physicalMin);
+                    			double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
                                 for (int i =0; i < subpage.values.length; i++) {
                                 	subpage.values[i] = (int) (scalingfactor * subpage.values[i]);
                                 }
@@ -312,6 +314,9 @@ public class EDFBuilder{
                             arguments.put("Duration", duration);						
                             arguments.put("Recordsnum", pagesum);
                             arguments.put("ChannelNames", channelnames);
+                            arguments.put("DigitalMin", digitalMin);
+                            arguments.put("DigitalMax", digitalMax);
+                            
                             
                             // Write header for the new file
                             EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
