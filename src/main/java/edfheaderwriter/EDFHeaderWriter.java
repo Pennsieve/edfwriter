@@ -61,12 +61,15 @@ public class EDFHeaderWriter {
         this.numSamples = new String[this.numSignals]; // Samples per signal
 
         ArrayList<String> labels = ((ArrayList<String>)arguments.get("ChannelNames"));
+        ArrayList<Double> physicalmin = (ArrayList<Double>) arguments.get("Physicalmin");
+        ArrayList<Double> physicalmax = (ArrayList<Double>) arguments.get("Physicalmax");
+
         // Need to update this too
         for (int i = 0; i < numSignals; i++) {
             signalLabels[i] = labels.get(i); // 16 bytes each
             signalPhysicalDimensions[i] = "uV"; // 8 bytes each
-            signalPhysicalMin[i] = (double)arguments.get("Physicalmin"); // min physical value
-            signalPhysicalMax[i] = (double)arguments.get("Physicalmax"); // max physical value
+            signalPhysicalMin[i] = physicalmin.get(i); // min physical value
+            signalPhysicalMax[i] = physicalmax.get(i); // max physical value
             signalDigitalMin[i] = (double)arguments.get("DigitalMin"); 
             signalDigitalMax[i] = (double)arguments.get("DigitalMax");
             transducerType[i] = "Unknown"; // No prefiltering

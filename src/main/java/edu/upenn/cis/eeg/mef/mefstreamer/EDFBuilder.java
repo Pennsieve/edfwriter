@@ -58,14 +58,18 @@ public class EDFBuilder{
             channelnames.add(baseName);
             
 		}
-		
+		// ** CAN DELETE **
 		// Creates csv for timing shifts
-       String shiftFileName = directoryPath + File.separator + subjectid + "_shifted_times.csv";
+       //String shiftFileName = directoryPath + File.separator + subjectid + "_shifted_times.csv";
+		// ** CAN DELETE **
 
 		
 		// Initialize variables for runningMax/runningMin
 		double runningMax = 1;
         double runningMin = -1;
+        
+        ArrayList<Double> physicalMax = new ArrayList<>();
+        ArrayList<Double> physicalMin = new ArrayList<>();
         
         double localMin = -1;
         double localMax = 1;
@@ -77,269 +81,328 @@ public class EDFBuilder{
 		int counter = 0;
 		String startdate = "";
 		String starttime = "";
-		File[] filesminusfirst = new File[this.files.length - 1];	
 		
+		// ** CAN DELETE **
+		//File[] filesminusfirst = new File[this.files.length - 1];	
 		// Create variable that excludes the first mef file
-		System.arraycopy(this.files, 1, filesminusfirst, 0, this.files.length - 1);
+		//System.arraycopy(this.files, 1, filesminusfirst, 0, this.files.length - 1);
+		// ** CAN DELETE **
 		
         // Read first MEF file and first block to build header
 		// Pulls the first mef file 
         String path = this.files[0].getAbsolutePath();
         
         // Opens the first Mef file 
-        try (RandomAccessFile file = new RandomAccessFile(path, "r")) {
+        // change to a for loop
+       try (RandomAccessFile file = new RandomAccessFile(path, "r")) {
         	MEFStreamer streamer = new MEFStreamer(file);
         	MefHeader2 header = streamer.getMEFHeader();
         	int currentOffset = 0;
                 
-                // Write values to CSV
-                try (BufferedWriter shiftWriter = new BufferedWriter(new FileWriter(shiftFileName))) {
-                    shiftWriter.write("Start_Discont,End_Discont,Difference_minus_Increment\n");
+        	// ** CAN DELETE **
+                // Write values to CSV, don't need this!
+               //try (BufferedWriter shiftWriter = new BufferedWriter(new FileWriter(shiftFileName))) {
+                   // shiftWriter.write("Start_Discont,End_Discont,Difference_minus_Increment\n");
+        	// ** CAN DELETE **
                  
-                    long abs_starttime = header.getRecordingStartTime();
-                    System.out.println("Absolute Start Time: " + abs_starttime);
-                    // Get number of blocks from MEF file
-                    long numBlocks = streamer.getNumberOfBlocks();
-                    System.out.println("Num Blocks: " + numBlocks + " blocks.");
-                    
-                	// Pull sampling frequency to be used in calculations
-                	double samplingfreq = header.getSamplingFrequency();
-                    // Define the time increment
-                    long timeIncrement = (long) (1.0 / samplingfreq * Math.pow(10, 6)); // 1/sampling frequency * 10^6
-
-                    TimeSeriesPage previousPage = null;
-
-                    // Create new EDF files when time difference exceeds threshold
-                    RandomAccessFile edfFile = null;
-                    
-                    int pagesum = 0;
-                    boolean mintimevalue = false;
-                    long absStartTime = 0;
-                    int startrange = 0;
-                    int endrange = 0;
-                    // Don't know if we need this
-                    arguments = new HashMap<>();
-                    arguments.put("Physicalmax", runningMax);
-                    arguments.put("Physicalmin", runningMin);
-                    arguments.put("SubjID", subjectid);
-                    arguments.put("Signalnum", numsignals);
-                    arguments.put("StartDate", startdate);
-                    arguments.put("StartTime", starttime);
-                    arguments.put("DigitalMin", digitalMin);
-                    arguments.put("DigitalMax", digitalMax);
-                   // arguments.put("Duration", 1l); // Needs to be updated
-                    //arguments.put("Recordsnum", -1); // Needs to be updated
-                    arguments.put("ChannelNames", channelnames);
+                long abs_starttime = header.getRecordingStartTime();
+                System.out.println("Absolute Start Time: " + abs_starttime);
+                // Get number of blocks from MEF file
+                long numBlocks = streamer.getNumberOfBlocks();
+                System.out.println("Num Blocks: " + numBlocks + " blocks.");
                 
-                // Loop over each block in the first mef file
-                for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
-                	MefHeader2 mefHeader = streamer.getMEFHeader();
-                	
-                	// Get min and max from MEF header
+            	// Pull sampling frequency to be used in calculations
+            	double samplingfreq = header.getSamplingFrequency();
+                // Define the time increment
+                long timeIncrement = (long) (1.0 / samplingfreq * Math.pow(10, 6)); // 1/sampling frequency * 10^6
 
-            		localMin = Arrays.stream(page.values).min().orElseThrow();
-                    localMax = Arrays.stream(page.values).max().orElseThrow();
-                    if (localMax > runningMax) {
-                    	runningMax = localMax;
-                    	arguments.put("Physicalmax", localMax);
-                    }
-                    if (localMin < runningMin) {
-                    	runningMin = localMin;
-                    	arguments.put("Physicalmin", localMin);
-                    }
-                    
-                    
-                    // Get number of entries on page and add to variable
-                    // Adds the number of entries for each block over time
-                    pagesum += page.values.length;
-                    int recordsnum = pagesum * numsignals;
-                    arguments.put("Recordsnum", recordsnum);
-                   // System.out.println("Page Sum: " + pagesum);
-                   // long numentries = ((page.timeEnd - page.timeStart) * (1/512));
-                    //System.out.println("Num Entries Calculated: " + numentries);
-                   // System.out.println("Page Sum: " + pagesum);
+                TimeSeriesPage previousPage = null;
 
+                 // ** CAN DELETE **
+                    // Create new EDF files when time difference exceeds threshold
+                   // RandomAccessFile edfFile = null;
+                 // ** CAN DELETE **
                     
-                	if (previousPage == null) {
-                		absStartTime = page.timeStart;
-                		System.out.println("Start Time: " + page.timeStart);
-                		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
-                		// can be improved 
-                		StringTokenizer tokenizer = new StringTokenizer(date, " ");
-                		startdate = tokenizer.nextToken();
-                		arguments.put("StartDate", startdate);
-                		starttime = tokenizer.nextToken();
-                		arguments.put("StartTime", starttime);
-                        double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
-                        double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq);
-                        System.out.println("Num Entries Calculated: " + numentries);
-                        System.out.println("Total Time in Block: " + Math.subtractExact(page.timeEnd, page.timeStart)); 
-                       // System.out.println("Num Entires Calculated: " + Math.multiplyExact((1/512), Math.subtractExact(page.timeEnd, page.timeStart))); 
-             
+                int pagesum = 0;
+                boolean mintimevalue = false;
+                long absStartTime = 0;
+                int startrange = 0;
+                int endrange = 0;
+                // Initialize the arguments to be inputted into the edf header writer 
+                arguments = new HashMap<>();
+             // ** CAN DELETE **
+                //arguments.put("Physicalmax", runningMax);
+                //arguments.put("Physicalmin", runningMin);
+             // ** CAN DELETE **
+                arguments.put("SubjID", subjectid);
+                arguments.put("Signalnum", numsignals);
+                arguments.put("StartDate", startdate);
+                arguments.put("StartTime", starttime);
+                arguments.put("DigitalMin", digitalMin);
+                arguments.put("DigitalMax", digitalMax);
+                arguments.put("ChannelNames", channelnames);
+                
+            // Loop over each block in the first mef file
+            for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
+            	
+            	// Get min and max from values by streaming them in
+        		localMin = Arrays.stream(page.values).min().orElseThrow();
+                localMax = Arrays.stream(page.values).max().orElseThrow();
+                if (localMax > runningMax) {
+                	runningMax = localMax;
+                	//  Add the physical max dimension here and index to be the first in the list
+                	//physicalMax.add(running))=runningMax;
+                	// ** CAN DELETE **
+                	//arguments.put("Physicalmax", runningMax);
+                	// ** CAN DELETE **
+                }
+                if (localMin < runningMin) {
+                	runningMin = localMin;
+                	//physicalMin[counter]= runningMin;
+                	// ** CAN DELETE **
+                	//arguments.put("Physicalmin", runningMin);
+                	// ** CAN DELETE **
+                }
+                
+                
+                // Get number of entries on page and add to variable
+                // Adds the number of entries for each block over time
+                pagesum += page.values.length;
+                int recordsnum = pagesum * numsignals;
+                arguments.put("Recordsnum", recordsnum);
+
+                
+            	if (previousPage == null) {
+            		absStartTime = page.timeStart;
+            		System.out.println("Start Time: " + page.timeStart);
+            		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+            		// can be improved 
+            		StringTokenizer tokenizer = new StringTokenizer(date, " ");
+            		startdate = tokenizer.nextToken();
+            		arguments.put("StartDate", startdate);
+            		starttime = tokenizer.nextToken();
+            		arguments.put("StartTime", starttime);
+                    double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
+                    double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq);
+                    System.out.println("Num Entries Calculated: " + numentries);
+                    System.out.println("Total Time in Block: " + Math.subtractExact(page.timeEnd, page.timeStart)); 
+                   // ** HERE INSERT FUNCTION THAT DOES THE DISCONTINUITY THING
+            	}
+        		else {
+        			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
+        			long nextBlockStartTime = page.timeStart;
+        			if (mintimevalue == false) {
+        				absStartTime = page.timeStart;
+        				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
+            			// can be improved 
+        				StringTokenizer tokenizer = new StringTokenizer(date, " ");
+        				startdate = tokenizer.nextToken();
+        				starttime = tokenizer.nextToken();
+        				mintimevalue = true;
+        			}
+        			// Write out discontinuity loop here
+        			double calculated_sampfreq = pagesum/((page.timeStart - abs_starttime)*10e-6);
+        			if (calculated_sampfreq > (2 * samplingfreq)){
+            			System.out.println("Page Sum: " + pagesum);
+            			System.out.println("page time start: " + page.timeStart);
+            			System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
+            			System.out.println("Real Samp Freq: " + samplingfreq);
+        				//Write out an interpolated value 
+        			}
+                    long timeDifference = nextBlockStartTime - lastEntryTime;
+                    endrange++;
+                    
+
+
+            		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
+                  	//delete existing files before rerunning!
+                	File delFile = new File(outputEDF); //opens file
+                	if (delFile.exists()) {
+                		delFile.delete();
                 	}
-            		else {
-            			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
-            			long nextBlockStartTime = page.timeStart;
-            			if (mintimevalue == false) {
-            				absStartTime = page.timeStart;
-            				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
-                			// can be improved 
-            				StringTokenizer tokenizer = new StringTokenizer(date, " ");
-            				startdate = tokenizer.nextToken();
-            				starttime = tokenizer.nextToken();
-            				mintimevalue = true;
-            			}
-            			// Write out discontinuity loop here
-            			//System.out.println("Page Sum: " + pagesum);
-            			//System.out.println("page time start: " + page.timeStart);
-            			double calculated_sampfreq = pagesum/((page.timeStart - abs_starttime)*10e-6);
-            			//System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-            			if (calculated_sampfreq > (2 * samplingfreq)){
-                			System.out.println("Page Sum: " + pagesum);
-                			System.out.println("page time start: " + page.timeStart);
-                			System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-                			System.out.println("Real Samp Freq: " + samplingfreq);
-            				//Write out an interpolated value 
-            			}
-                        long timeDifference = nextBlockStartTime - lastEntryTime;
-                        endrange++;
-                        
-                        // Write the first mef file data here 
-                        // Where should this go?
-
-                		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
-                      	//delete existing files before rerunning!
-                    	File delFile = new File(outputEDF); //opens file
-                    	if (delFile.exists()) {
-                    		delFile.delete();
-                    	}
-                		//EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-                		// How to scale all the values? maybe not just writing them out here 
-                		// Probably need to not write data until  we have the range of all the data we are writing?
-                		//dataWriter.write(currentOffset,page.values);
-                		
-
-                		
-                		// Write out to csv
-                		if (timeDifference > timeIncrement && timeDifference < 2 * timeIncrement) {
-                            long timeshift = (long) (timeDifference - timeIncrement);
-                            shiftWriter.write(String.format("%d,%d,%d\n", lastEntryTime, nextBlockStartTime, timeshift));
-                         //   if (page.timestart/512 >)
-                		}
-                		
-                		// Add if loop here to write out continuously , actually no put this as an elseif maybe for the
-                		//discontinuity counter
-                        
-                        // Check if the time difference requires a new file (or new channel)
-                        if (timeDifference > 2 * timeIncrement) {
-                        	System.out.println("Discontinuity Found: " + page.timeStart);
-                        	long endblocktime = page.timeEnd;
-                        	long duration = (endblocktime - absStartTime)/1000000;
-                        	arguments.put("Duration", duration);
-                        	// Loops through the rest of the mef files, to get all of the mins/maxes
-                        	for (File inputFile : filesminusfirst) {
-                        		// Loops through the blocks that the first mef file got through
-                        		int subcounter = 0;
-                        		String subpath = inputFile.getAbsolutePath();
-                        		RandomAccessFile subFile = new RandomAccessFile(subpath,"r");
-                        		MEFStreamer substreamer = new MEFStreamer(subFile);
-                        		List<TimeSeriesPage> subpages = substreamer.getNextBlocks((int) numBlocks);
-                        		for (TimeSeriesPage subpage : subpages) {
-                        			// Start range begins at 0 and helps to define the range of values for each 
+                    
+                    // Check if the time difference requires a new file (or new channel)
+                    if (timeDifference > 2 * timeIncrement) {
+                    	System.out.println("Discontinuity Found: " + page.timeStart);
+                    	long endblocktime = page.timeEnd;
+                    	long duration = (endblocktime - absStartTime)/1000000;
+                    	arguments.put("Duration", duration);
+                    	
+                    	 // ** CAN DELETE **
+                    	//int subcounter = 0;
+                    	//List<TimeSeriesPage> pages = streamer.getNextBlocks((int) numBlocks);
+                    	 // ** CAN DELETE **
+                    	
+                		// Opens up all files, finds if they are within the range, scales, and then 
+                    	// writes to the edf file
+                		for (File currentFile : this.files) {
+                			int subcounter = 0;
+                			int subtwocounter = 0;
+                			runningMax = 0;
+                			runningMin = 0;
+                    		String currentpath = currentFile.getAbsolutePath();
+                    		RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
+                			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
+                			for (TimeSeriesPage subpage: substreamer.getNextBlocks((int) numBlocks)) {
+                				if (subcounter < startrange || subcounter > endrange) {
+                    				subcounter++;
+                    				continue;
+                				}
+                				
+                				
+                            	// Get min and max from values by streaming them in
+                        		localMin = Arrays.stream(page.values).min().orElseThrow();
+                                localMax = Arrays.stream(page.values).max().orElseThrow();
+                                if (localMax > runningMax) {
+                                	runningMax = localMax;
+             
+                                }
+                                if (localMin < runningMin) {
+                                	runningMin = localMin;
+                                }
+                                
+                			}
+                			
+                			for (TimeSeriesPage subtwopage: substreamer.getNextBlocks((int) numBlocks)) {
+                				if (subtwocounter < startrange || subtwocounter > endrange) {
+                					subtwocounter++;
+                					continue;
+                				}
+                				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
+                				for (int i =0; i < subtwopage.values.length; i++) {
+                					subtwopage.values[i] = (int) (scalingfactor * subtwopage.values[i]);
+                			
+                			
+                				
+                				
+                				 // ** CAN DELETE **
+                            	//for (TimeSeriesPage page1 : pages) {
+                            		// Start range begins at 0 and helps to define the range of values for each 
                         			// new edf file, the code will iterate through each value and update the start range 
                         			// until 
-                        			if (subcounter < startrange || subcounter > endrange) {
-                        				subcounter++;
-                        				continue;
-                        			}
+                            		
+                            		// ** I DONT THINK THIS IS NECESSARY SINCE IT CHECKED ABOVE **
+                        			//if (subcounter < startrange || subcounter > endrange) {
+                        			//	subcounter++;
+                        			//	continue;
+                        			//}
+                            		// ** MAY BE REMOVEABLE
+                				 // ** CAN DELETE **
+                            		
+                        			// Do I need this? I'm thinking this loop may not be as necessary 
+                        			// since this loop was iterating over multiple pages but rn we are just 
+                        			// looking at one page 
+                        			//for (double value : page.values) {
+           
 
-                                    // Update running max and min based on the current block's values
-                                  //  for (double value : subpage.values) {
-                            		localMin = Arrays.stream(subpage.values).min().orElseThrow();
-                                    localMax = Arrays.stream(subpage.values).max().orElseThrow();
-                                    if (localMax > runningMax) {
-                                    	runningMax = localMax;
-                                    	arguments.put("Physicalmax", localMax);
-                                    }
-                                    if (localMin < runningMin) {
-                                    	runningMin = localMin;
-                                    	arguments.put("Physicalmin", localMin);
-                                    }
-                                    subcounter++;
-                                    substreamer.close();
-                                     
-                        		}
-                                    
+                            		
+                            	 // ** CAN DELETE **	
+                            			//}
+                            		
+                            		//subcounter++;
+                                   // streamer.close();
+                            			
+                            	// ** CAN DELETE **
+                            	
+                				
+                            	EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
 
+                            	dataWriter.write(currentOffset,subtwopage.values);
+                            	currentOffset += dataWriter.calculateRecordSize();
+                		
+                            }
 
-                    		}
-                    		// This is the final write step after looping through all mins/maxes
-                    		// Re-opens all channels (mef files) to scale and write to edf
-                    		for (File currentFile : this.files) {
-                    			int subtwocounter = 0;
-                        		String currentpath = currentFile.getAbsolutePath();
-                        		RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
-                    			MEFStreamer subtwostreamer = new MEFStreamer(currenttwoFile);
-                    			for (TimeSeriesPage subpage: subtwostreamer.getNextBlocks((int) numBlocks)) {
-                    				if (subtwocounter < startrange || subtwocounter > endrange) {
-                        				subtwocounter++;
-                        				continue;
-                    				}
-                    				
-      
-                    			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-                    			double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
-                                for (int i =0; i < subpage.values.length; i++) {
-                                	subpage.values[i] = (int) (scalingfactor * subpage.values[i]);
-                                }
-
-                    			dataWriter.write(currentOffset,subpage.values);
-                    			currentOffset += dataWriter.calculateRecordSize();
-                    		
-                                }
-                                
-                        		
-                                
-                                subtwocounter++;
-                                subtwostreamer.close();
-                    		}
-                        	
-                    		// Write out data into the edf
-                            arguments = new HashMap<>();
-                            arguments.put("Physicalmax", runningMax);
-                            arguments.put("Physicalmin", runningMin);
-                            arguments.put("SubjID", subjectid);
-                            arguments.put("Signalnum", numsignals);
-                            arguments.put("StartDate", startdate);
-                            arguments.put("StartTime", starttime);
-                            arguments.put("Duration", duration);						
-                            arguments.put("Recordsnum", (pagesum * numsignals));
-                            arguments.put("ChannelNames", channelnames);
-                            arguments.put("DigitalMin", digitalMin);
-                            arguments.put("DigitalMax", digitalMax);
-                            arguments.put("NumSamples",pagesum);
-                            
-                            
-                            // Write header for the new file
-                            EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-                            headerWriter.write(outputEDF);
-
-                        	counter++;
-                        
-                        	startrange = endrange;
-                            // Need to move this to be in the right place which is not below previous page
-                            runningMax = 1; 
-                        	runningMin = -1; 
-                        	}
+                            subcounter++;
+                            substreamer.close();
+                			}
+                           	//  Add the physical max dimension here and index to be the first in the list
+                			physicalMax.add(runningMax);
+                			physicalMin.add(runningMin);
+                			
                 		}
-                	previousPage = page;
-                	
-                	
-                }
+                    	
+
+
+                         // ** CAN DELETE **
+                    	// Don't need this if we are just extracting a max/min for each channel
+                    	//Loops through the rest of the mef files, to get all of the mins/maxes
+                    //	for (File inputFile : filesminusfirst) {
+                    		// Loops through the blocks that the first mef file got through
+                    		//int subcounter = 0;
+                    		//String subpath = inputFile.getAbsolutePath();
+                    		//RandomAccessFile subFile = new RandomAccessFile(subpath,"r");
+                    		//MEFStreamer substreamer = new MEFStreamer(subFile);
+                    		//List<TimeSeriesPage> subpages = substreamer.getNextBlocks((int) numBlocks);
+                    	//	for (TimeSeriesPage subpage : subpages) {
+                    			// Start range begins at 0 and helps to define the range of values for each 
+                    			// new edf file, the code will iterate through each value and update the start range 
+                    			// until 
+                    			//if (subcounter < startrange || subcounter > endrange) {
+                    			//	subcounter++;
+                    			//	continue;
+                    		//	}
+
+                                // Update running max and min based on the current block's values
+                              //  for (double value : subpage.values) {
+                        		//localMin = Arrays.stream(subpage.values).min().orElseThrow();
+                             //   localMax = Arrays.stream(subpage.values).max().orElseThrow();
+                             //   if (localMax > runningMax) {
+                               // 	runningMax = localMax;
+                                //	arguments.put("Physicalmax", localMax);
+                             //   }
+                             //   if (localMin < runningMin) {
+                             //   	runningMin = localMin;
+                            //    	arguments.put("Physicalmin", localMin);
+                            //    }
+                             //   subcounter++;
+                              //  substreamer.close();
+                                 
+                    	//	}
+                         // ** CAN DELETE **
+                                
+
+
+                		
+                		
+                		// Write out data into the edf
+                        arguments = new HashMap<>();
+                        arguments.put("Physicalmax", physicalMax);
+                        arguments.put("Physicalmin", physicalMin);
+                        arguments.put("SubjID", subjectid);
+                        arguments.put("Signalnum", numsignals);
+                        arguments.put("StartDate", startdate);
+                        arguments.put("StartTime", starttime);
+                        arguments.put("Duration", duration);						
+                        arguments.put("Recordsnum", (pagesum * numsignals));
+                        arguments.put("ChannelNames", channelnames);
+                        arguments.put("DigitalMin", digitalMin);
+                        arguments.put("DigitalMax", digitalMax);
+                        arguments.put("NumSamples",pagesum);
+                        
+                        
+                        // Write header for the new file
+                        EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
+                        headerWriter.write(outputEDF);
+
+
+                    	// Specific to within file
+                    	startrange = endrange;
+
+                    	}
+            		}
+            	previousPage = page;
+                // On the channel (file level)
+                runningMax = 1; 
+            	runningMin = -1; 
+                // On the channel (file level) 
+            	counter++;
+            	
+            	
+            } // This is the loop for each block within a mef file
                 pagesum = 0;
                 
 
-            }
+            
         } catch (IOException e) {
             e.printStackTrace();
         }
