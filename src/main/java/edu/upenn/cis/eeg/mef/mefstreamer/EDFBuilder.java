@@ -118,10 +118,10 @@ public class EDFBuilder{
 
                 TimeSeriesPage previousPage = null;
 
-                 // ** CAN DELETE **
-                    // Create new EDF files when time difference exceeds threshold
-                   // RandomAccessFile edfFile = null;
-                 // ** CAN DELETE **
+                
+                // Create new EDF files when time difference exceeds threshold
+                RandomAccessFile edfFile = null;
+                 
                     
                 int pagesum = 0;
                 boolean mintimevalue = false;
@@ -216,10 +216,10 @@ public class EDFBuilder{
 
             		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
                   	//delete existing files before rerunning!
-                	File delFile = new File(outputEDF); //opens file
-                	if (delFile.exists()) {
-                		delFile.delete();
-                	}
+                	//File delFile = new File(outputEDF); //opens file
+                	//if (delFile.exists()) {
+                	//	delFile.delete();
+                	//}
                     
                     // Check if the time difference requires a new file (or new channel)
                     if (timeDifference > 2 * timeIncrement) {
@@ -384,6 +384,7 @@ public class EDFBuilder{
                         EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
                         headerWriter.write(outputEDF);
 
+                        counter++;
 
                     	// Specific to within file
                     	startrange = endrange;
@@ -395,7 +396,7 @@ public class EDFBuilder{
                 runningMax = 1; 
             	runningMin = -1; 
                 // On the channel (file level) 
-            	counter++;
+            	//counter++;
             	
             	
             } // This is the loop for each block within a mef file
