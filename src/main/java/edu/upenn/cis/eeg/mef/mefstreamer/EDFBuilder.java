@@ -216,10 +216,10 @@ public class EDFBuilder{
 
             		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
                   	//delete existing files before rerunning!
-                	//File delFile = new File(outputEDF); //opens file
-                	//if (delFile.exists()) {
-                	//	delFile.delete();
-                	//}
+                	File delFile = new File(outputEDF); //opens file
+                	if (delFile.exists()) {
+                		delFile.delete();
+                	}
                     
                     // Check if the time difference requires a new file (or new channel)
                     if (timeDifference > 2 * timeIncrement) {
@@ -251,8 +251,8 @@ public class EDFBuilder{
                 				
                 				
                             	// Get min and max from values by streaming them in
-                        		localMin = Arrays.stream(page.values).min().orElseThrow();
-                                localMax = Arrays.stream(page.values).max().orElseThrow();
+                        		localMin = Arrays.stream(subpage.values).min().orElseThrow();
+                                localMax = Arrays.stream(subpage.values).max().orElseThrow();
                                 if (localMax > runningMax) {
                                 	runningMax = localMax;
              
@@ -262,12 +262,15 @@ public class EDFBuilder{
                                 }
                                 
                 			}
-                			
-                			for (TimeSeriesPage subtwopage: substreamer.getNextBlocks((int) numBlocks)) {
+                			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
+                			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
+                			for (TimeSeriesPage subtwopage: subtwostreamer.getNextBlocks((int) numBlocks)) {
                 				if (subtwocounter < startrange || subtwocounter > endrange) {
                 					subtwocounter++;
                 					continue;
                 				}
+                				// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
+                				//for (double value : page.values) {
                 				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
                 				for (int i =0; i < subtwopage.values.length; i++) {
                 					subtwopage.values[i] = (int) (scalingfactor * subtwopage.values[i]);
@@ -314,6 +317,7 @@ public class EDFBuilder{
 
                             subcounter++;
                             substreamer.close();
+                            subtwostreamer.close();
                 			}
                            	//  Add the physical max dimension here and index to be the first in the list
                 			physicalMax.add(runningMax);
