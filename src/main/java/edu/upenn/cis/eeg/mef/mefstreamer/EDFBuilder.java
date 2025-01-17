@@ -125,14 +125,14 @@ public class EDFBuilder{
             for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
             	
             	// Get min and max from values by streaming them in
-        		localMin = Arrays.stream(page.values).min().orElseThrow();
-                localMax = Arrays.stream(page.values).max().orElseThrow();
-                if (localMax > runningMax) {
-                	runningMax = localMax;
-                }
-                if (localMin < runningMin) {
-                	runningMin = localMin;
-                }
+        		//localMin = Arrays.stream(page.values).min().orElseThrow();
+                //localMax = Arrays.stream(page.values).max().orElseThrow();
+                //if (localMax > runningMax) {
+                //	runningMax = localMax;
+                //}
+                //if (localMin < runningMin) {
+                //	runningMin = localMin;
+                //}
                 
                 
                 // Get number of entries on page and add to variable
@@ -207,8 +207,8 @@ public class EDFBuilder{
                 		for (File currentFile : this.files) {
                 			int subcounter = 0;
                 			int subtwocounter = 0;
-                			runningMax = 0;
-                			runningMin = 0;
+                			runningMax = 1;
+                			runningMin = -1;
                     		String currentpath = currentFile.getAbsolutePath();
                     		RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
                 			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
@@ -264,11 +264,15 @@ public class EDFBuilder{
                 			
                 		
                 		// Write out data into the edf
-                        arguments = new HashMap<>();
+                        //arguments = new HashMap<>();
+                		System.out.println("PhysicalMax: " + physicalMax);
+                		System.out.println("PhysicalMin: " + physicalMin);
+                		System.out.println("Start Date: "  + startdate);
+                		System.out.println("Start Time: "  + starttime);
                         arguments.put("Physicalmax", physicalMax);
                         arguments.put("Physicalmin", physicalMin);
-                        //arguments.put("SubjID", subjectid);
-                        //arguments.put("Signalnum", numsignals);
+                        arguments.put("SubjID", subjectid);
+                        arguments.put("Signalnum", numsignals);
                         //arguments.put("StartDate", startdate);
                         //arguments.put("StartTime", starttime);
                         arguments.put("Duration", duration);						
@@ -287,15 +291,16 @@ public class EDFBuilder{
 
                     	// Specific to within file
                     	startrange = endrange;
+                    	mintimevalue = false;
+                    	physicalMax = new ArrayList<>();
+                    	physicalMin = new ArrayList<>();
 
                     	}
             		}
             	previousPage = page;
-                // On the channel (file level)
                 runningMax = 1; 
             	runningMin = -1; 
-                // On the channel (file level) 
-            	//counter++;
+              
             	
             	
             } // This is the loop for each block within a mef file
