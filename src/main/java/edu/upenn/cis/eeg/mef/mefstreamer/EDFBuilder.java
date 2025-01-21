@@ -45,6 +45,8 @@ public class EDFBuilder{
     
     int startrange;
     int endrange;
+    
+    long duration;
 	
 	
 	public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
@@ -216,12 +218,12 @@ public class EDFBuilder{
             	previousPage = page;
                 runningMax = 0; 
             	runningMin = 0; 
-            	pagesum = 0;
+            	
               
             	
             	
             } // This is the loop for each block within a mef file
-               
+            pagesum = 0;  
                 
 
             
@@ -261,7 +263,7 @@ public class EDFBuilder{
 		if (timeDifference > 2 * timeIncrement) {
 			System.out.println("Discontinuity Found: " + page.timeStart);
 			long endblocktime = page.timeEnd;
-			long duration = (endblocktime - absStartTime)/1000000;
+			duration = (endblocktime - absStartTime)/1000000;
 			arguments.put("Duration", duration);
 			
 			// Opens up all files, finds if they are within the range, scales, and then 
@@ -275,12 +277,12 @@ public class EDFBuilder{
 				RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 				MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
 				
-				subcounter = buildLocalMinMax(numBlocks, subcounter, substreamer);
+				subcounter = buildLocalMinMax(subcounter, substreamer);
 				
 				RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
 				MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
 				
-				writeDatatoEDF(numBlocks, subtwocounter, subtwostreamer);
+				writeDatatoEDF(subtwocounter, subtwostreamer);
 
 	            subcounter++;
 	            substreamer.close();
@@ -323,6 +325,7 @@ public class EDFBuilder{
 		    	mintimevalue = false;
 		    	physicalMax = new ArrayList<>();
 		    	physicalMin = new ArrayList<>();
+		    	duration = 0;
 
 			}
 		else {
@@ -330,7 +333,7 @@ public class EDFBuilder{
 		}
 	}
 
-	private void writeDatatoEDF(long numBlocks, int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
+	private void writeDatatoEDF(int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
 		if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
 			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
 			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
@@ -340,29 +343,30 @@ public class EDFBuilder{
 			
 		}
 		else {
-			for (TimeSeriesPage subtwopage: subtwostreamer.getNextBlocks((int) numBlocks)) {
-				if (subtwocounter < startrange || subtwocounter > endrange) {
-					subtwocounter++;
-					continue;
-				}
+			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
+			for (int i = startrange; i < endrange; i++) {
+				//if (subtwocounter < startrange || subtwocounter > endrange) {
+				subtwocounter++;
+				//continue;
+				//}
 				// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
 				//for (double value : page.values) {
 				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
-				for (int i =0; i < subtwopage.values.length; i++) {
-					subtwopage.values[i] = (int) (scalingfactor * subtwopage.values[i]);
+				for (int j =0; j < subtwopage.get(i).values.length; j++) {
+					subtwopage.get(i).values[j] = (int) (scalingfactor * subtwopage.get(i).values[j]);
 				}
 
 
 				EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
 
-				dataWriter.write(currentOffset,subtwopage.values);
+				dataWriter.write(currentOffset,subtwopage.get(i).values);
 				currentOffset += dataWriter.calculateRecordSize();
 
 			}
 		}
 	}
 
-	private int buildLocalMinMax(long numBlocks, int subcounter, MEFStreamer substreamer) throws IOException {
+	private int buildLocalMinMax(int subcounter, MEFStreamer substreamer) throws IOException {
 		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) 1);
 			// Get min and max from values by streaming them in
@@ -379,21 +383,21 @@ public class EDFBuilder{
 
 		}
 		else {
-			// To make this more efficient change numBlocks to endrange 
-			for (TimeSeriesPage subpage: substreamer.getNextBlocks((int) numBlocks)) {
+			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) endrange);
+			for (int i = startrange; i < endrange; i++) {
 
 				// Instead of this write a for loop that iterates over i as equals to 
 				// start range to end range 
 				// Plug in i as a .get(i) after subpage for all values
-				if (subcounter < startrange || subcounter > endrange) {
-					subcounter++;
-					continue;
-				}
+				//if (subcounter < startrange || subcounter > endrange) {
+				subcounter++;
+				//	continue;
+				//}
 
 
 				// Get min and max from values by streaming them in
-				localMin = Arrays.stream(subpage.values).min().orElseThrow();
-				localMax = Arrays.stream(subpage.values).max().orElseThrow();
+				localMin = Arrays.stream(subpage.get(i).values).min().orElseThrow();
+				localMax = Arrays.stream(subpage.get(i).values).max().orElseThrow();
 				if (localMax > runningMax) {
 					runningMax = localMax;
 
