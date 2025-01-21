@@ -182,9 +182,12 @@ public class EDFBuilder{
         			nextpagestreamer.close();
         			
         			
+        			
                    // ** HERE INSERT FUNCTION THAT DOES THE DISCONTINUITY THING
 
-                   // Add call to readAndWriteBlocks here
+        			readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
+							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
+            	}
 
             	
         		else {
