@@ -124,16 +124,6 @@ public class EDFBuilder{
             // Loop over each block in the first mef file
             for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
             	
-            	// Get min and max from values by streaming them in
-        		//localMin = Arrays.stream(page.values).min().orElseThrow();
-                //localMax = Arrays.stream(page.values).max().orElseThrow();
-                //if (localMax > runningMax) {
-                //	runningMax = localMax;
-                //}
-                //if (localMin < runningMin) {
-                //	runningMin = localMin;
-                //}
-                
                 
                 // Get number of entries on page and add to variable
                 // Adds the number of entries for each block over time
@@ -155,9 +145,21 @@ public class EDFBuilder{
                     double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
                     double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq);
                     System.out.println("Num Entries Calculated: " + numentries);
-                    System.out.println("Total Time in Block: " + Math.subtractExact(page.timeEnd, page.timeStart)); 
+                    System.out.println("Total Time in Block: " + Math.subtractExact(page.timeEnd, page.timeStart));
+                    
+        			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
+        			System.out.println("Number of Entries in First Block: " + page.values.length);
+        			RandomAccessFile openFile = new RandomAccessFile(path,"r");
+        			MEFStreamer nextpagestreamer = new MEFStreamer(openFile);
+        			List<TimeSeriesPage> nextPages = nextpagestreamer.getNextBlocks((int) 2);
+        			long nextBlockStartTime = nextPages.get(1).timeStart;
+        			nextpagestreamer.close();
+        			
+        			
                    // ** HERE INSERT FUNCTION THAT DOES THE DISCONTINUITY THING
+                    
             	}
+            	
         		else {
         			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
         			long nextBlockStartTime = page.timeStart;
@@ -172,6 +174,7 @@ public class EDFBuilder{
         				arguments.put("StartTime", starttime);
         				mintimevalue = true;
         			}
+        			
         			
         			
         			// Write out discontinuity loop here
