@@ -110,10 +110,6 @@ public class EDFHeaderWriter {
 	    offset = writeStringToHeader(String.valueOf(this.numSignals), header, offset, 4);
 
 	    // Signal data fields
-	    System.out.println("Signal max: "  + signalPhysicalMax[0] + signalPhysicalMax[1]);
-	    System.out.println("Signal min: "  + signalPhysicalMin[0] + signalPhysicalMin[1]);
-	    System.out.println("Start Date: "  + startDate);
-	    System.out.println("Start Time: "  + startTime);
 	    for (String label : signalLabels) offset = writeStringToHeader(label, header, offset, 16);
 	    for (String type : transducerType) offset = writeStringToHeader(type, header, offset, 80);
 	    for (String dim : signalPhysicalDimensions) offset = writeStringToHeader(dim, header, offset, 8);

@@ -57,11 +57,11 @@ public class EDFBuilder{
         this.physicalMax = new ArrayList<>();
         this.physicalMin = new ArrayList<>();
         
-		this.runningMax = 1;
-		this.runningMin = -1;
+		this.runningMax = 0;
+		this.runningMin = 0;
 		
-		this.localMin = -1;
-		this.localMax = 1;
+		this.localMin = 0;
+		this.localMax = 0;
 		
 		this.digitalMax = 32767;
 		this.digitalMin = -32767;
@@ -152,7 +152,7 @@ public class EDFBuilder{
                 
                 // Get number of entries on page and add to variable
                 // Adds the number of entries for each block over time
-                pagesum += page.values.length;
+                pagesum += (page.values.length);
                 int recordsnum = pagesum * numsignals;
                 arguments.put("Recordsnum", recordsnum);
 
@@ -213,13 +213,14 @@ public class EDFBuilder{
 
             		}
             	previousPage = page;
-                runningMax = 1; 
-            	runningMin = -1; 
+                runningMax = 0; 
+            	runningMin = 0; 
+            	pagesum = 0;
               
             	
             	
             } // This is the loop for each block within a mef file
-                pagesum = 0;
+               
                 
 
             
@@ -228,11 +229,12 @@ public class EDFBuilder{
         }
 	}
 
-	private void readAndWriteBlocks(String startdate, String starttime, long abs_starttime, long numBlocks,
+	private void readAndWriteBlocks(String startdate, String starttime, long absstarttime, long numBlocks,
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
 			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
 		// Write out discontinuity loop here
-		double calculated_sampfreq = pagesum/((page.timeStart - abs_starttime)*10e-6);
+		double calculated_sampfreq = pagesum/((page.timeStart - absStartTime)*10e-6);
+		System.out.println("Calculated Samp Freq: " + calculated_sampfreq); 
 		if (calculated_sampfreq > (2 * samplingfreq)){
 			System.out.println("Page Sum: " + pagesum);
 			System.out.println("page time start: " + page.timeStart);
@@ -264,8 +266,8 @@ public class EDFBuilder{
 			for (File currentFile : this.files) {
 				int subcounter = 0;
 				int subtwocounter = 0;
-				runningMax = 1;
-				runningMin = -1;
+				runningMax = 0;
+				runningMin = 0;
 				String currentpath = currentFile.getAbsolutePath();
 				RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 				MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
@@ -326,48 +328,81 @@ public class EDFBuilder{
 	}
 
 	private void writeDatatoEDF(long numBlocks, int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
-		for (TimeSeriesPage subtwopage: subtwostreamer.getNextBlocks((int) numBlocks)) {
-			if (subtwocounter < startrange || subtwocounter > endrange) {
-				subtwocounter++;
-				continue;
-			}
-			// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
-			//for (double value : page.values) {
-			double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
-			for (int i =0; i < subtwopage.values.length; i++) {
-				subtwopage.values[i] = (int) (scalingfactor * subtwopage.values[i]);
-			}
-			
-			
+		if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
+			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
 			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
 
-			dataWriter.write(currentOffset,subtwopage.values);
+			dataWriter.write(currentOffset,subtwopage.get(0).values);
 			currentOffset += dataWriter.calculateRecordSize();
+			
+		}
+		else {
+			for (TimeSeriesPage subtwopage: subtwostreamer.getNextBlocks((int) numBlocks)) {
+				if (subtwocounter < startrange || subtwocounter > endrange) {
+					subtwocounter++;
+					continue;
+				}
+				// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
+				//for (double value : page.values) {
+				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
+				for (int i =0; i < subtwopage.values.length; i++) {
+					subtwopage.values[i] = (int) (scalingfactor * subtwopage.values[i]);
+				}
 
+
+				EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+
+				dataWriter.write(currentOffset,subtwopage.values);
+				currentOffset += dataWriter.calculateRecordSize();
+
+			}
 		}
 	}
 
 	private int buildLocalMinMax(long numBlocks, int subcounter, MEFStreamer substreamer) throws IOException {
-		for (TimeSeriesPage subpage: substreamer.getNextBlocks((int) numBlocks)) {
-			if (subcounter < startrange || subcounter > endrange) {
-				subcounter++;
-				continue;
-			}
-			
-			
+		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
+			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) 1);
 			// Get min and max from values by streaming them in
-			localMin = Arrays.stream(subpage.values).min().orElseThrow();
-		    localMax = Arrays.stream(subpage.values).max().orElseThrow();
-		    if (localMax > runningMax) {
-		    	runningMax = localMax;
-        
-		    }
-		    if (localMin < runningMin) {
-		    	runningMin = localMin;
-		    }
-		    
+			localMin = Arrays.stream(subpage.get(0).values).min().orElseThrow();
+			localMax = Arrays.stream(subpage.get(0).values).max().orElseThrow();
+			if (localMax > runningMax) {
+				runningMax = localMax;
+
+			}
+			if (localMin < runningMin) {
+				runningMin = localMin;
+			}
+
+
+		}
+		else {
+			for (TimeSeriesPage subpage: substreamer.getNextBlocks((int) numBlocks)) {
+
+				if (subcounter < startrange || subcounter > endrange) {
+					subcounter++;
+					continue;
+				}
+
+
+				// Get min and max from values by streaming them in
+				localMin = Arrays.stream(subpage.values).min().orElseThrow();
+				localMax = Arrays.stream(subpage.values).max().orElseThrow();
+				if (localMax > runningMax) {
+					runningMax = localMax;
+
+				}
+				if (localMin < runningMin) {
+					runningMin = localMin;
+				}
+
+			}
 		}
 		return subcounter;
+	}
+
+	private void elseif(int i) {
+		// TODO Auto-generated method stub
+		
 	}
 }
                 	
