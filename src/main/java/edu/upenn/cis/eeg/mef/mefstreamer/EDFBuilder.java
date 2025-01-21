@@ -153,6 +153,7 @@ public class EDFBuilder{
                 // Get number of entries on page and add to variable
                 // Adds the number of entries for each block over time
                 pagesum += (page.values.length);
+                System.out.println("PageSum After each Page: " + pagesum);
                 int recordsnum = pagesum * numsignals;
                 arguments.put("Recordsnum", recordsnum);
 
@@ -233,14 +234,16 @@ public class EDFBuilder{
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
 			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
 		// Write out discontinuity loop here
-		double calculated_sampfreq = pagesum/((page.timeStart - absStartTime)*10e-6);
-		System.out.println("Calculated Samp Freq: " + calculated_sampfreq); 
-		if (calculated_sampfreq > (2 * samplingfreq)){
-			System.out.println("Page Sum: " + pagesum);
-			System.out.println("page time start: " + page.timeStart);
-			System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-			System.out.println("Real Samp Freq: " + samplingfreq);
-			//Write out an interpolated value 
+		if (page.timeStart != absStartTime) {
+			double calculated_sampfreq = (pagesum/(page.timeStart - absStartTime))*10e6;
+			System.out.println("Calculated Samp Freq: " + calculated_sampfreq); 
+			if (calculated_sampfreq > (2 * samplingfreq)){
+				System.out.println("Page Sum: " + pagesum);
+				System.out.println("page time start: " + page.timeStart);
+				System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
+				System.out.println("Real Samp Freq: " + samplingfreq);
+				//Write out an interpolated value 
+			}
 		}
 		long timeDifference = nextBlockStartTime - lastEntryTime;
 		endrange++;
@@ -376,8 +379,12 @@ public class EDFBuilder{
 
 		}
 		else {
+			// To make this more efficient change numBlocks to endrange 
 			for (TimeSeriesPage subpage: substreamer.getNextBlocks((int) numBlocks)) {
 
+				// Instead of this write a for loop that iterates over i as equals to 
+				// start range to end range 
+				// Plug in i as a .get(i) after subpage for all values
 				if (subcounter < startrange || subcounter > endrange) {
 					subcounter++;
 					continue;
