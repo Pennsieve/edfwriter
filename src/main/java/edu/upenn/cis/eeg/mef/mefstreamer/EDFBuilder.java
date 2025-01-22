@@ -123,6 +123,9 @@ public class EDFBuilder{
                 
                  
             long abs_starttime = header.getRecordingStartTime();
+            
+            double conversion_factor = header.getVoltageConversionFactor();
+            System.out.println("Voltage Conversion Factor: " + conversion_factor);
             System.out.println("Absolute Start Time: " + abs_starttime);
             // Get number of blocks from MEF file
             long numBlocks = streamer.getNumberOfBlocks();
@@ -155,7 +158,6 @@ public class EDFBuilder{
                 // Get number of entries on page and add to variable
                 // Adds the number of entries for each block over time
                 pagesum += (page.values.length);
-                System.out.println("PageSum After each Page: " + pagesum);
                 int recordsnum = pagesum * numsignals;
                 arguments.put("Recordsnum", recordsnum);
 
@@ -172,9 +174,7 @@ public class EDFBuilder{
             		arguments.put("StartTime", starttime);
             		
                     double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
-                    double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq);
-                    System.out.println("Num Entries Calculated: " + numentries);
-                    System.out.println("Total Time in Block: " + Math.subtractExact(page.timeEnd, page.timeStart));
+                    double numentries = totaltimeinblock * Math.pow(10, 6) * (1/samplingfreq); 
                     
         			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
         			System.out.println("Number of Entries in First Block: " + page.values.length);
@@ -188,7 +188,7 @@ public class EDFBuilder{
         			
                    // ** HERE INSERT FUNCTION THAT DOES THE DISCONTINUITY THING
 
-        			readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
+        			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
 							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
             	}
 
@@ -210,7 +210,7 @@ public class EDFBuilder{
         			
         			
 
-        			readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
+        			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
 							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
 
 
@@ -223,7 +223,7 @@ public class EDFBuilder{
             	
             	
             } // This is the loop for each block within a mef file
-            pagesum = 0;  
+           // pagesum = 0;  
                 
 
             
@@ -232,16 +232,15 @@ public class EDFBuilder{
         }
 	}
 
-	private void readAndWriteBlocks(String startdate, String starttime, long absstarttime, long numBlocks,
+	private int readAndWriteBlocks(String startdate, String starttime, long absstarttime, long numBlocks,
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
 			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
 		// Write out discontinuity loop here
 		if (page.timeStart != absStartTime) {
-			double calculated_sampfreq = (pagesum/(page.timeStart - absStartTime))*10e6;
-			System.out.println("Calculated Samp Freq: " + calculated_sampfreq); 
+			double calculated_sampfreq = pagesum/((page.timeStart - absStartTime)*Math.pow(10,-6));
+			//System.out.println("Calculated Samp Freq: " + calculated_sampfreq); 
 			if (calculated_sampfreq > (2 * samplingfreq)){
 				System.out.println("Page Sum: " + pagesum);
-				System.out.println("page time start: " + page.timeStart);
 				System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
 				System.out.println("Real Samp Freq: " + samplingfreq);
 				//Write out an interpolated value 
@@ -304,13 +303,8 @@ public class EDFBuilder{
 		        arguments.put("Physicalmin", physicalMin);
 		        arguments.put("SubjID", subjectid);
 		        arguments.put("Signalnum", numsignals);
-		        //arguments.put("StartDate", startdate);
-		        //arguments.put("StartTime", starttime);
 		        arguments.put("Duration", duration);						
 		        arguments.put("Recordsnum", (pagesum * numsignals));
-		        //arguments.put("ChannelNames", channelnames);
-		        //arguments.put("DigitalMin", digitalMin);
-		        //arguments.put("DigitalMax", digitalMax);
 		        arguments.put("NumSamples",pagesum);
 		        
 		        
@@ -326,11 +320,13 @@ public class EDFBuilder{
 		    	physicalMax = new ArrayList<>();
 		    	physicalMin = new ArrayList<>();
 		    	duration = 0;
-
+		    	pagesum = 0;
+		
 			}
 		else {
 			// We still need to write out EDFs here if no discontinuity is found
 		}
+		return pagesum;
 	}
 
 	private void writeDatatoEDF(int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
@@ -350,7 +346,7 @@ public class EDFBuilder{
 				//continue;
 				//}
 				// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
-				//for (double value : page.values) {
+
 				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
 				for (int j =0; j < subtwopage.get(i).values.length; j++) {
 					subtwopage.get(i).values[j] = (int) (scalingfactor * subtwopage.get(i).values[j]);
@@ -386,14 +382,7 @@ public class EDFBuilder{
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) endrange);
 			for (int i = startrange; i < endrange; i++) {
 
-				// Instead of this write a for loop that iterates over i as equals to 
-				// start range to end range 
-				// Plug in i as a .get(i) after subpage for all values
-				//if (subcounter < startrange || subcounter > endrange) {
 				subcounter++;
-				//	continue;
-				//}
-
 
 				// Get min and max from values by streaming them in
 				localMin = Arrays.stream(subpage.get(i).values).min().orElseThrow();
