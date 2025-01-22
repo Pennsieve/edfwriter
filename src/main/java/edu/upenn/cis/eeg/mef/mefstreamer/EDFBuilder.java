@@ -46,7 +46,7 @@ public class EDFBuilder{
     int startrange;
     int endrange;
     
-    long duration;
+    double duration;
 	
 	
 	public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
@@ -123,9 +123,6 @@ public class EDFBuilder{
                 
                  
             long abs_starttime = header.getRecordingStartTime();
-            
-            double conversion_factor = header.getVoltageConversionFactor();
-            System.out.println("Voltage Conversion Factor: " + conversion_factor);
             System.out.println("Absolute Start Time: " + abs_starttime);
             // Get number of blocks from MEF file
             long numBlocks = streamer.getNumberOfBlocks();
@@ -275,13 +272,18 @@ public class EDFBuilder{
 				String currentpath = currentFile.getAbsolutePath();
 				RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 				MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
+				MefHeader2 headervoltage = substreamer.getMEFHeader();
 				
-				subcounter = buildLocalMinMax(subcounter, substreamer);
+	            double conversion_factor = headervoltage.getVoltageConversionFactor();
+	            System.out.println("Voltage Conversion Factor: " + conversion_factor);
+				
+				
+				subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
 				
 				RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
 				MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
 				
-				writeDatatoEDF(subtwocounter, subtwostreamer);
+				writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
 
 	            subcounter++;
 	            substreamer.close();
@@ -329,7 +331,7 @@ public class EDFBuilder{
 		return pagesum;
 	}
 
-	private void writeDatatoEDF(int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
+	private void writeDatatoEDF(double conversion_factor, int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
 		if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
 			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
 			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
@@ -341,15 +343,13 @@ public class EDFBuilder{
 		else {
 			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
 			for (int i = startrange; i < endrange; i++) {
-				//if (subtwocounter < startrange || subtwocounter > endrange) {
+				
 				subtwocounter++;
-				//continue;
-				//}
-				// ** THIS IS WHAT I THINK NEEDS TO BE CHANGED
+	        	
 
 				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
 				for (int j =0; j < subtwopage.get(i).values.length; j++) {
-					subtwopage.get(i).values[j] = (int) (scalingfactor * subtwopage.get(i).values[j]);
+					subtwopage.get(i).values[j] = (int) (scalingfactor * (subtwopage.get(i).values[j]) * conversion_factor);
 				}
 
 
@@ -362,7 +362,7 @@ public class EDFBuilder{
 		}
 	}
 
-	private int buildLocalMinMax(int subcounter, MEFStreamer substreamer) throws IOException {
+	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer) throws IOException {
 		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) 1);
 			// Get min and max from values by streaming them in
@@ -384,15 +384,31 @@ public class EDFBuilder{
 
 				subcounter++;
 
-				// Get min and max from values by streaming them in
-				localMin = Arrays.stream(subpage.get(i).values).min().orElseThrow();
-				localMax = Arrays.stream(subpage.get(i).values).max().orElseThrow();
-				if (localMax > runningMax) {
-					runningMax = localMax;
+				if (conversion_factor < 0) {
+					// Get min and max from values by streaming them in
+					localMax = (Arrays.stream(subpage.get(i).values).min().orElseThrow()) * conversion_factor;
+					localMin = (Arrays.stream(subpage.get(i).values).max().orElseThrow()) * conversion_factor;
+					if (localMax > runningMax) {
+						runningMax = localMax;
+
+					}
+					if (localMin < runningMin) {
+						runningMin = localMin;
+					}
 
 				}
-				if (localMin < runningMin) {
-					runningMin = localMin;
+				else {
+
+					// Get min and max from values by streaming them in
+					localMin = (Arrays.stream(subpage.get(i).values).min().orElseThrow()) * conversion_factor;
+					localMax = (Arrays.stream(subpage.get(i).values).max().orElseThrow()) * conversion_factor;
+					if (localMax > runningMax) {
+						runningMax = localMax;
+
+					}
+					if (localMin < runningMin) {
+						runningMin = localMin;
+					}
 				}
 
 			}

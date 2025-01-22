@@ -17,7 +17,7 @@ public class EDFHeaderWriter {
     private String startTime;
     private int numRecords;
     private int NumSamples;
-    private long duration;
+    private double duration;
     private int numSignals;
     private int numBytes;
     private double Digital_Min; // Hardcoded. Min size of possible data using 2 bytes (Short)
@@ -46,7 +46,7 @@ public class EDFHeaderWriter {
         this.startTime = (String)arguments.get("StartTime");        // 8 bytes
         this.numRecords = (int)arguments.get("Recordsnum");      // 8 bytes
         this.NumSamples = (int)arguments.get("NumSamples");
-        this.duration = (long)arguments.get("Duration");         // 8 bytes
+        this.duration = (double)arguments.get("Duration");         // 8 bytes
         this.numSignals = (int)arguments.get("Signalnum");        // 4 byte
         this.numBytes = (numSignals*256) + 256;
         
@@ -86,7 +86,7 @@ public class EDFHeaderWriter {
         headerData.put("startDate", new FieldDetails(168, 8, String.class)); // 8 bytes
         headerData.put("startTime", new FieldDetails(176, 8, String.class)); // 8 bytes
         headerData.put("numRecords", new FieldDetails(184, 8, Integer.class)); // 8 bytes
-        headerData.put("duration", new FieldDetails(192, 8, Long.class)); // 8 bytes
+        headerData.put("duration", new FieldDetails(192, 8, Double.class)); // 8 bytes
         headerData.put("numSignals", new FieldDetails(200, 4, Integer.class)); // 4 bytes
         headerData.put("numBytes", new FieldDetails(204, 8, Integer.class)); // 8 bytes
 	}
