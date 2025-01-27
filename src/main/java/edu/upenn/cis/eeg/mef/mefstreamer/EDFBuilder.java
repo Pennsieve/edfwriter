@@ -158,18 +158,6 @@ public class EDFBuilder{
                 // Get number of entries on page and add to variable
                 // Adds the number of entries for each block over time
                 pagesum += (page.values.length);
-                if (page.values.length != 2500 && previousPage != null) {
-                	System.out.println("Odd Length: " + page.values.length);
-                	System.out.println("Odd Length Block Num: " + endrange);
-                	System.out.println("Odd Length Page Time Start: " + page.timeStart);
-                	System.out.println("Odd Length Page Time End: " + page.timeEnd);
-                	System.out.println("Odd Length Previous Page Time End: " + previousPage.timeEnd);
-                	newendrange = endrange + 1;
-                }
-                
-                if (endrange == newendrange) {
-                	System.out.println("Odd Length Next Page Time Start: " + page.timeStart);
-                }
                 int recordsnum = pagesum * numsignals;
                 arguments.put("Recordsnum", recordsnum);
 
@@ -197,8 +185,6 @@ public class EDFBuilder{
         			nextpagestreamer.close();
         			
         			
-        			
-                   // ** HERE INSERT FUNCTION THAT DOES THE DISCONTINUITY THING
 
         			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
 							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
@@ -247,16 +233,16 @@ public class EDFBuilder{
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
 			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
 		// Write out discontinuity loop here
-		if (page.timeStart != absStartTime) {
-			double totaltime = page.timeStart + (page.values.length - 1) * timeIncrement;
-			double calculated_sampfreq = pagesum/((totaltime - absStartTime)*Math.pow(10,-6));
-			if (calculated_sampfreq > (2 * samplingfreq)){
-				System.out.println("Page Sum: " + pagesum);
-				System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-				System.out.println("Real Samp Freq: " + samplingfreq);
+		//if (page.timeStart != absStartTime) {
+			//double totaltime = page.timeStart + (page.values.length - 1) * timeIncrement;
+			//double calculated_sampfreq = pagesum/((totaltime - absStartTime)*Math.pow(10,-6));
+			//if (calculated_sampfreq > (2 * samplingfreq)){
+			//	System.out.println("Page Sum: " + pagesum);
+			//	System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
+			//	System.out.println("Real Samp Freq: " + samplingfreq);
 				//Write out an interpolated value 
-			}
-		}
+			//}
+	//	}
 		long timeDifference = nextBlockStartTime - lastEntryTime;
 		endrange++;
 
@@ -270,11 +256,10 @@ public class EDFBuilder{
 		}
 
 		// Check if the time difference requires a new file (or new channel)
-		// Doesn't work for the first channel, since it meets the second criteria
 		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
 			System.out.println("Discontinuity Found: " + page.timeStart);
 
-			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum);
+			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
 
 			counter++;
 
@@ -291,7 +276,7 @@ public class EDFBuilder{
 
 			System.out.println("Final EDF Writing: " + page.timeStart);
 
-			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum);
+			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
 
 			System.out.println("Final Count (End Range): " + endrange);
 
@@ -322,7 +307,6 @@ public class EDFBuilder{
 					subtwocounter++;
 				}
 
-				//System.out.println("Total Number in each edf: " + subtwocounter);
 				EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
 
 				dataWriter.write(currentOffset,subtwopage.get(i).values);
@@ -332,12 +316,12 @@ public class EDFBuilder{
 		}
 	}
 	
-	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum) throws IOException {
-		long endblocktime = page.timeEnd;
-		duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
-		double actual_duration = pagesum/512;
+	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
+		//long endblocktime = page.timeEnd;
+		//duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
+		double actual_duration = pagesum/samplingfreq;
 		System.out.println("Actual Duration: " + actual_duration);
-		arguments.put("Duration", duration);
+		arguments.put("Duration", actual_duration);
 		
 		// Opens up all files, finds if they are within the range, scales, and then 
 		// writes to the edf file
@@ -381,7 +365,7 @@ public class EDFBuilder{
 	        arguments.put("Physicalmin", physicalMin);
 	        arguments.put("SubjID", subjectid);
 	        arguments.put("Signalnum", numsignals);
-	        arguments.put("Duration", duration);						
+	        arguments.put("Duration", actual_duration);						
 	        arguments.put("Recordsnum", (pagesum * numsignals));
 	        arguments.put("NumSamples",pagesum);
 	        
