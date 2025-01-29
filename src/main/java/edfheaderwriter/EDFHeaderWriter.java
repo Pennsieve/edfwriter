@@ -17,7 +17,7 @@ public class EDFHeaderWriter {
     private String startTime;
     private int numRecords;
     private int NumSamples;
-    private double duration;
+    private int duration;
     private int numSignals;
     private int numBytes;
     private double Digital_Min; // Hardcoded. Min size of possible data using 2 bytes (Short)
@@ -46,7 +46,7 @@ public class EDFHeaderWriter {
         this.startTime = (String)arguments.get("StartTime");        // 8 bytes
         this.numRecords = (int)arguments.get("Recordsnum");      // 8 bytes
         this.NumSamples = (int)arguments.get("NumSamples");
-        this.duration = (double)arguments.get("Duration");         // 8 bytes
+        this.duration = (int)arguments.get("Duration");         // 8 bytes
         this.numSignals = (int)arguments.get("Signalnum");        // 4 byte
         this.numBytes = (numSignals*256) + 256;
         
@@ -66,13 +66,14 @@ public class EDFHeaderWriter {
 
         // Need to update this too
         for (int i = 0; i < numSignals; i++) {
-            signalLabels[i] = labels.get(i); // 16 bytes each
+            signalLabels[i] = "EEG Fpz-Cz"; // 16 bytes each
             signalPhysicalDimensions[i] = "uV"; // 8 bytes each
             signalPhysicalMin[i] = physicalmin.get(i); // min physical value
             signalPhysicalMax[i] = physicalmax.get(i); // max physical value
             signalDigitalMin[i] = (double)arguments.get("DigitalMin"); 
             signalDigitalMax[i] = (double)arguments.get("DigitalMax");
-            transducerType[i] = "Unknown"; // No prefiltering
+            //Change this back
+            transducerType[i] = labels.get(i); // No prefiltering
             prefiltering[i] = ""; // No prefiltering
             numSamples[i] = String.valueOf(NumSamples); // Number of samples in each record (4 bytes) 8 ascii spaces x num of samples
         }
@@ -86,7 +87,7 @@ public class EDFHeaderWriter {
         headerData.put("startDate", new FieldDetails(168, 8, String.class)); // 8 bytes
         headerData.put("startTime", new FieldDetails(176, 8, String.class)); // 8 bytes
         headerData.put("numRecords", new FieldDetails(184, 8, Integer.class)); // 8 bytes
-        headerData.put("duration", new FieldDetails(192, 8, Double.class)); // 8 bytes
+        headerData.put("duration", new FieldDetails(192, 8, Integer.class)); // 8 bytes
         headerData.put("numSignals", new FieldDetails(200, 4, Integer.class)); // 4 bytes
         headerData.put("numBytes", new FieldDetails(204, 8, Integer.class)); // 8 bytes
 	}

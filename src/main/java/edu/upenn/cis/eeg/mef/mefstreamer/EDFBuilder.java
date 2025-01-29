@@ -46,7 +46,7 @@ public class EDFBuilder{
     int startrange;
     int endrange;
     
-    double duration;
+    int duration;
     
 	
 	
@@ -319,7 +319,8 @@ public class EDFBuilder{
 	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
 		//long endblocktime = page.timeEnd;
 		//duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
-		double actual_duration = pagesum/samplingfreq;
+		int sampfreq = (int) samplingfreq;
+		int actual_duration = pagesum/sampfreq;
 		System.out.println("Actual Duration: " + actual_duration);
 		arguments.put("Duration", actual_duration);
 		
@@ -366,7 +367,7 @@ public class EDFBuilder{
 	        arguments.put("SubjID", subjectid);
 	        arguments.put("Signalnum", numsignals);
 	        arguments.put("Duration", actual_duration);						
-	        arguments.put("Recordsnum", (pagesum * numsignals));
+	        arguments.put("Recordsnum", 1);
 	        arguments.put("NumSamples",pagesum);
 	        
 	        
