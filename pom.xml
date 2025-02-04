@@ -120,6 +120,11 @@
             <version>2.6.4</version>
         </dependency>
         <dependency>
+    		<groupId>org.openjdk.jol</groupId>
+    		<artifactId>jol-core</artifactId>
+    		<version>0.16</version>
+		</dependency>
+        <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jettison-provider</artifactId>
             <version>3.0.11.Final</version>

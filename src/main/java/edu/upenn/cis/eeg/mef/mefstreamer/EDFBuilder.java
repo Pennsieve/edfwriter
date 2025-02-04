@@ -12,6 +12,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import org.apache.commons.compress.utils.IOUtils;
+
+//import org.openjdk.jol.info.ClassLayout;
+
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 import edu.upenn.cis.edfdatawriter.EDFDataWriter;
@@ -141,7 +145,7 @@ public class EDFBuilder{
             
             long absStartTime = 0;
             
-            double newendrange = 0;
+           // double newendrange = 0;
             
             // Initialize the arguments to be inputed into the edf header writer 
             arguments = new HashMap<>();
@@ -187,7 +191,7 @@ public class EDFBuilder{
         			
 
         			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
-							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
+							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime, numsignals);
             	}
 
             	
@@ -209,7 +213,7 @@ public class EDFBuilder{
         			
 
         			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
-							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
+							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime, numsignals);
 
 
             		}
@@ -231,18 +235,8 @@ public class EDFBuilder{
 
 	private int readAndWriteBlocks(String startdate, String starttime, long abs_starttime, long numBlocks,
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
-			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
-		// Write out discontinuity loop here
-		//if (page.timeStart != absStartTime) {
-			//double totaltime = page.timeStart + (page.values.length - 1) * timeIncrement;
-			//double calculated_sampfreq = pagesum/((totaltime - absStartTime)*Math.pow(10,-6));
-			//if (calculated_sampfreq > (2 * samplingfreq)){
-			//	System.out.println("Page Sum: " + pagesum);
-			//	System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-			//	System.out.println("Real Samp Freq: " + samplingfreq);
-				//Write out an interpolated value 
-			//}
-	//	}
+			long lastEntryTime, long nextBlockStartTime, int numsignals) throws FileNotFoundException, IOException {
+
 		long timeDifference = nextBlockStartTime - lastEntryTime;
 		endrange++;
 
@@ -254,9 +248,11 @@ public class EDFBuilder{
 		if (delFile.exists()) {
 			delFile.delete();
 		}
-
+		
+		
 		// Check if the time difference requires a new file (or new channel)
 		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
+			System.out.println("Page After cut: " + pagesum);
 			System.out.println("Discontinuity Found: " + page.timeStart);
 
 			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
@@ -285,96 +281,100 @@ public class EDFBuilder{
 		return pagesum;
 	}
 
-	private void writeDatatoEDF(double conversion_factor, int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
-		if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
-			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
-			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
-
-			dataWriter.write(currentOffset,subtwopage.get(0).values);
-			currentOffset += dataWriter.calculateRecordSize();
+	private void writeDatatoEDF() throws IOException { //MEFStreamer subtwostreamer) 
+		for (File currentthreeFile : this.files) {
+			int subtwocounter = 0;
+			String currentpathtwo = currentthreeFile.getAbsolutePath();
+			RandomAccessFile currentfourFile = new RandomAccessFile(currentpathtwo,"r");
+			MEFStreamer subtwostreamer = new MEFStreamer(currentfourFile);
+			MefHeader2 headervoltage = subtwostreamer.getMEFHeader();
 			
-		}
-		else {
-			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
-			for (int i = startrange; i < endrange; i++) {
-				
-				//subtwocounter++;
-	        	
-
-				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
-				for (int j =0; j < subtwopage.get(i).values.length; j++) {
-					subtwopage.get(i).values[j] = (int) ((scalingfactor *subtwopage.get(i).values[j]) * conversion_factor); 
-					subtwocounter++;
-				}
-
+            double conversion_factortwo = headervoltage.getVoltageConversionFactor();
+			if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
+				List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
 				EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
 
-				dataWriter.write(currentOffset,subtwopage.get(i).values);
+				dataWriter.write(currentOffset,subtwopage.get(0).values);
 				currentOffset += dataWriter.calculateRecordSize();
 
 			}
+			else {
+				List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
+				for (int i = startrange; i < endrange; i++) {
+
+					subtwocounter++;
+
+
+					double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
+					for (int j =0; j < subtwopage.get(i).values.length; j++) {
+						subtwopage.get(i).values[j] = (int) ((scalingfactor *subtwopage.get(i).values[j]) * conversion_factortwo); 
+					}
+
+					EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+
+					dataWriter.write(currentOffset,subtwopage.get(i).values);
+					currentOffset += dataWriter.calculateRecordSize();
+				}
+
+			}
+			subtwostreamer.close();
 		}
 	}
 	
 	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
-		//long endblocktime = page.timeEnd;
-		//duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
-		//int sampfreq = (int) samplingfreq;
+
 		double actual_duration = pagesum/samplingfreq;
 		System.out.println("Actual Duration: " + actual_duration);
 		arguments.put("Duration", actual_duration);
-		
-		// Opens up all files, finds if they are within the range, scales, and then 
-		// writes to the edf file
+
+		// Opens up all files, finds if they are within the range and pulls min and max
 		for (File currentFile : this.files) {
 			int subcounter = 0;
-			int subtwocounter = 0;
-			runningMax = 0;
-			runningMin = 0;
 			String currentpath = currentFile.getAbsolutePath();
 			RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
 			MefHeader2 headervoltage = substreamer.getMEFHeader();
-			
-            double conversion_factor = headervoltage.getVoltageConversionFactor();
-            System.out.println("Voltage Conversion Factor: " + conversion_factor);
-			
-			
-			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
-			
-			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
-			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
-			
-			writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
 
-            subcounter++;
-            substreamer.close();
-            subtwostreamer.close();
-            //  Add the physical max dimension here and index to be the first in the list
-    		physicalMax.add(runningMax);
-    		physicalMin.add(runningMin);
+			double conversion_factor = headervoltage.getVoltageConversionFactor();
+
+			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
+
+
+			subcounter++;
+			substreamer.close();
 		}
-		
-			
-		
-			// Write out data into the edf
-			System.out.println("PhysicalMax: " + physicalMax);
-			System.out.println("PhysicalMin: " + physicalMin);
-			System.out.println("Start Date: "  + startdate);
-			System.out.println("Start Time: "  + starttime);
-	        arguments.put("Physicalmax", physicalMax);
-	        arguments.put("Physicalmin", physicalMin);
-	        arguments.put("SubjID", subjectid);
-	        arguments.put("Signalnum", numsignals);
-	        arguments.put("Duration", actual_duration);						
-	        arguments.put("Recordsnum", 1);
-	        arguments.put("NumSamples",pagesum);
-	        
-	        
-	        // Write header for the new file
-	        EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-	        headerWriter.write(outputEDF);
+
+		for (int i = 0; i < numsignals; i++) {
+			physicalMin.add(runningMin);
+			physicalMax.add(runningMax);
+		}
+
+
+
+		writeDatatoEDF();
+
+
+
+
+		// Write out data into the edf
+		System.out.println("PhysicalMax: " + physicalMax);
+		System.out.println("PhysicalMin: " + physicalMin);
+		System.out.println("Start Date: "  + startdate);
+		System.out.println("Start Time: "  + starttime);
+		arguments.put("Physicalmax", physicalMax);
+		arguments.put("Physicalmin", physicalMin);
+		arguments.put("SubjID", subjectid);
+		arguments.put("Signalnum", numsignals);
+		arguments.put("Duration", actual_duration);						
+		arguments.put("Recordsnum", 1);
+		arguments.put("NumSamples",pagesum);
+
+
+		// Write header for the new file
+		EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
+		headerWriter.write(outputEDF);
 	}
+	
 
 	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer) throws IOException {
 		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
