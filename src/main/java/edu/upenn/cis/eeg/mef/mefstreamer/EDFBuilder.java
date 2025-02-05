@@ -392,6 +392,8 @@ public class EDFBuilder{
 			return;
 		}
 		else {
+			
+			
 			// Need to update this so it actually works idk
 			 int start = totalSamples / 10000;  
 
@@ -410,6 +412,18 @@ public class EDFBuilder{
 					return;
 				}
 			}
+			if (samplesPerRecord == (maxSamplesPerRecord + 1)) {
+					System.out.println("No Whole Data Records Found");
+					samplesPerRecord = 1;
+					numDataRecords = totalSamples / samplesPerRecord;
+					arguments.put("Recordsnum", numDataRecords);
+					arguments.put("NumSamples",samplesPerRecord);
+
+					double newduration = (double) samplesPerRecord / samplingfreq;
+					arguments.put("Duration", newduration);
+					
+				}
+			
 		}
 
 	}
