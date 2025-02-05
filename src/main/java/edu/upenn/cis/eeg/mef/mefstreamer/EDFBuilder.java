@@ -62,11 +62,11 @@ public class EDFBuilder{
         this.physicalMax = new ArrayList<>();
         this.physicalMin = new ArrayList<>();
         
-		this.runningMax = 0;
-		this.runningMin = 0;
+		this.runningMax = 1;
+		this.runningMin = -1;
 		
-		this.localMin = 0;
-		this.localMax = 0;
+		this.localMin = -1;
+		this.localMax = 1;
 		
 		this.digitalMax = 32767;
 		this.digitalMin = -32767;
@@ -392,13 +392,12 @@ public class EDFBuilder{
 			return;
 		}
 		else {
-			// Need to update this so it actualy works idk
+			// Need to update this so it actually works idk
 			 int start = totalSamples / 10000;  
 
 
-			// Iterate over possible values for samplesPerRecord, from start up to maxSamplesPerRecord
 			for (samplesPerRecord = start; samplesPerRecord <= maxSamplesPerRecord; samplesPerRecord++) {
-				// Check if the number of data records will be an integer (whole number)
+				// Check if the number of data records will be a whole number
 				if (totalSamples % samplesPerRecord == 0) {
 					// Calculate the number of data records
 					numDataRecords = totalSamples / samplesPerRecord;
