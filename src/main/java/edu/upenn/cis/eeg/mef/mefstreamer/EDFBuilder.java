@@ -62,11 +62,11 @@ public class EDFBuilder{
         this.physicalMax = new ArrayList<>();
         this.physicalMin = new ArrayList<>();
         
-		this.runningMax = 0;
-		this.runningMin = 0;
+		this.runningMax = 1;
+		this.runningMin = -1;
 		
-		this.localMin = 0;
-		this.localMax = 0;
+		this.localMin = -1;
+		this.localMax = 1;
 		
 		this.digitalMax = 32767;
 		this.digitalMin = -32767;
@@ -249,7 +249,6 @@ public class EDFBuilder{
 		
 		// Check if the time difference requires a new file (or new channel)
 		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
-			System.out.println("Page After cut: " + pagesum);
 			System.out.println("Discontinuity Found: " + page.timeStart);
 
 			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
@@ -389,13 +388,12 @@ public class EDFBuilder{
 			return;
 		}
 		else {
-			// Need to update this so it actualy works idk
+			// Need to update this so it actually works idk
 			 int start = totalSamples / 10000;  
 
 
-			// Iterate over possible values for samplesPerRecord, from start up to maxSamplesPerRecord
 			for (samplesPerRecord = start; samplesPerRecord <= maxSamplesPerRecord; samplesPerRecord++) {
-				// Check if the number of data records will be an integer (whole number)
+				// Check if the number of data records will be a whole number
 				if (totalSamples % samplesPerRecord == 0) {
 					// Calculate the number of data records
 					numDataRecords = totalSamples / samplesPerRecord;
