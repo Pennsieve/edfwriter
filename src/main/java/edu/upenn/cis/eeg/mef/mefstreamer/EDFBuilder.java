@@ -12,6 +12,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import org.apache.commons.compress.utils.IOUtils;
+
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 import edu.upenn.cis.edfdatawriter.EDFDataWriter;
@@ -354,27 +356,66 @@ public class EDFBuilder{
     		physicalMax.add(runningMax);
     		physicalMin.add(runningMin);
 		}
+
+		// Write out data into the edf
+		System.out.println("PhysicalMax: " + physicalMax);
+		System.out.println("PhysicalMin: " + physicalMin);
+		System.out.println("Start Date: "  + startdate);
+		System.out.println("Start Time: "  + starttime);
+		arguments.put("Physicalmax", physicalMax);
+		arguments.put("Physicalmin", physicalMin);
+		arguments.put("SubjID", subjectid);
+		arguments.put("Signalnum", numsignals);	
 		
-			
+		calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
 		
-			// Write out data into the edf
-			System.out.println("PhysicalMax: " + physicalMax);
-			System.out.println("PhysicalMin: " + physicalMin);
-			System.out.println("Start Date: "  + startdate);
-			System.out.println("Start Time: "  + starttime);
-	        arguments.put("Physicalmax", physicalMax);
-	        arguments.put("Physicalmin", physicalMin);
-	        arguments.put("SubjID", subjectid);
-	        arguments.put("Signalnum", numsignals);
-	        arguments.put("Duration", actual_duration);						
-	        arguments.put("Recordsnum", 1);
-	        arguments.put("NumSamples",pagesum);
-	        
-	        
-	        // Write header for the new file
-	        EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-	        headerWriter.write(outputEDF);
+		// Write header for the new file
+		EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
+		headerWriter.write(outputEDF);
 	}
+	
+	private void calculatedatarecords(double samplingfreq, int pagesum, int numsignals, HashMap<String, Object> arguments) {
+
+		//  Need to figure out if this is wrong 
+		int totalSamples = pagesum;// * numsignals;
+
+		// Upper limit to the number of bytes allowed per data record according to edf
+		int maxSamplesPerRecord = 61440;  
+
+		// Variables to store the results
+		int numDataRecords = 0;
+		int samplesPerRecord = 0;
+		
+		if (pagesum == 1) {
+			arguments.put("Recordsnum", 1);
+			arguments.put("NumSamples", 1);
+			return;
+		}
+		else {
+			// Need to update this so it actualy works idk
+			 int start = totalSamples / 10000;  
+
+
+			// Iterate over possible values for samplesPerRecord, from start up to maxSamplesPerRecord
+			for (samplesPerRecord = start; samplesPerRecord <= maxSamplesPerRecord; samplesPerRecord++) {
+				// Check if the number of data records will be an integer (whole number)
+				if (totalSamples % samplesPerRecord == 0) {
+					// Calculate the number of data records
+					numDataRecords = totalSamples / samplesPerRecord;
+					arguments.put("Recordsnum", numDataRecords);
+					arguments.put("NumSamples",samplesPerRecord);
+
+					double newduration = (double) samplesPerRecord / samplingfreq;
+					arguments.put("Duration", newduration);
+
+					return;
+				}
+			}
+		}
+
+	}
+	
+
 
 	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer) throws IOException {
 		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
@@ -429,11 +470,6 @@ public class EDFBuilder{
 			}
 		}
 		return subcounter;
-	}
-
-	private void elseif(int i) {
-		// TODO Auto-generated method stub
-		
 	}
 }
                 	
