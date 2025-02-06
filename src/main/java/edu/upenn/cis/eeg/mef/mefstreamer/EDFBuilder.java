@@ -388,9 +388,24 @@ public class EDFBuilder{
 			return;
 		}
 		else {
-			
-			
-			// Need to update this so it actually works idk
+//			int start = 0;
+//			if (0 <= totalSamples && totalSamples >= 999) {
+//				start = totalSamples / 10; 
+//			}
+//			else if (1000 <= totalSamples && totalSamples >= 9999) {
+//				start = totalSamples / 100; 
+//			}
+//			else if (10000 <= totalSamples && totalSamples >= 99999) {
+//				start = totalSamples / 1000; 
+//			}
+//			else if (100000 <= totalSamples && totalSamples >= 999999) {
+//				start = totalSamples / 10000; 
+//			}
+//			else if (1000000 <= totalSamples && totalSamples >= 9999999) {
+//				start = totalSamples / 100000; 
+//			}
+ 			// Need to update this so it actually works 
+			// Iterate over values to determine value to divide by
 			 int start = totalSamples / 10000;  
 
 
