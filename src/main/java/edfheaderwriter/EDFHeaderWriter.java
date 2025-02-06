@@ -67,7 +67,7 @@ public class EDFHeaderWriter {
         // Need to update this too
         for (int i = 0; i < numSignals; i++) {
         	boolean b = labels.get(i).indexOf("EKG") >= 0;  
-        	if (b = true) {
+        	if (b == true) {
         		signalLabels[i] = "ECG" + labels.get(i); // 16 bytes each
         	}
         	else {
