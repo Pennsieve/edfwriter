@@ -128,36 +128,29 @@ public class EDFHeaderWriter {
 	    for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
 	    for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
 
-	    byte[] existingContent;
-	    try (FileInputStream fis = new FileInputStream(EDFPath)) {
-	        existingContent = fis.readAllBytes();
-	    } catch (IOException e) {
-	        System.err.println("Error reading existing file content: " + e.getMessage());
-	        e.printStackTrace();
-	        return -1;
-	    }
 
-	    // Combine header and existing content
-	    byte[] combinedContent = new byte[header.length + existingContent.length];
-	    System.arraycopy(header, 0, combinedContent, 0, header.length);
-	    System.arraycopy(existingContent, 0, combinedContent, header.length, existingContent.length);
+        byte[] existingContentBuffer = new byte[256]; 
+       // byte[] combinedContent;
+        
+        try (RandomAccessFile raf = new RandomAccessFile(EDFPath, "rw")) {
+            // Write the header at the beginning of the file
+            raf.write(header);
 
-	    // Write combined content back to file
-	    try (FileOutputStream out = new FileOutputStream(EDFPath)) {
-	        out.write(combinedContent);
-	        out.close();
-	    } catch (IOException e) {
-	        System.err.println("Error writing combined content to file: " + e.getMessage());
-	        e.printStackTrace();
-	        return -1;
-	    }
+            // Read and write the remaining content after the header
+            int bytesRead;
+            while ((bytesRead = raf.read(existingContentBuffer)) != -1) {
+                raf.write(existingContentBuffer, 0, bytesRead);
+            }
 
-	    System.out.println("EDF header written successfully. " + offset + " bytes written.");
-	    return offset;  // Return total bytes written to header
-	}
+        } catch (IOException e) {
+            System.err.println("Error reading or writing file: " + e.getMessage());
+            return -1;
+        }
 
+        System.out.println("EDF header written successfully. " + offset + " bytes written.");
+        return offset;  // Return total bytes written to header
+    }
     
-
     // Helper method to write a string to the header byte array
     private static int writeStringToHeader(String str, byte[] header, int offset, int length) {
         byte[] strBytes = str.getBytes(StandardCharsets.US_ASCII);
@@ -168,7 +161,7 @@ public class EDFHeaderWriter {
             header[offset + i] = (byte) ' ';
         }
         return offset + length;
-    }
+   }
     
     // Experimental ...maybe use this for regular write. Not fully tested do not depend on
     public void updateHeader(String fieldName, Object newValue) throws IOException {
