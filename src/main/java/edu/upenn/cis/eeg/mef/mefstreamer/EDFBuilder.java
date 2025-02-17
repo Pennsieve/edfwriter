@@ -114,6 +114,7 @@ public class EDFBuilder{
 
 		String startdate = "";
 		String starttime = "";
+		String startdatepre = "";
 		
         // Read first MEF file and first block to build header
 		// Pulls the first mef file 
@@ -176,13 +177,13 @@ public class EDFBuilder{
             		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
             		// can be improved 
             		StringTokenizer tokenizer = new StringTokenizer(date, " ");
-            		startdate = tokenizer.nextToken();
-                    LocalDate inputDate = LocalDate.parse(startdate, formatter);
+            		startdatepre = tokenizer.nextToken();
+                    LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
                     LocalDate baseDate = LocalDate.of(2000, 1, 1);
                     daysBetweenInputAndBase = ChronoUnit.DAYS.between(inputDate, baseDate);
                     LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
-                    String shiftedDateStr = shiftedDate.format(formatter);
-            		arguments.put("StartDate", shiftedDateStr);
+                    startdate = shiftedDate.format(formatter);
+            		arguments.put("StartDate", startdate);
             		starttime = tokenizer.nextToken();
             		arguments.put("StartTime", starttime);
                     
@@ -209,12 +210,11 @@ public class EDFBuilder{
         				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
             			// can be improved 
         				StringTokenizer tokenizer = new StringTokenizer(date, " ");
-        				startdate = tokenizer.nextToken();
-        				LocalDate inputDate = LocalDate.parse(startdate, formatter);
-                        LocalDate shiftedDate = inputDate.minusDays(daysBetweenInputAndBase);
-                        String shiftedDateStr = shiftedDate.format(formatter);
-                		arguments.put("StartDate", shiftedDateStr);
-        				arguments.put("StartDate", startdate);
+        				startdatepre = tokenizer.nextToken();
+        				LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
+                        LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
+                        startdate = shiftedDate.format(formatter);
+                		arguments.put("StartDate", startdate);
         				starttime = tokenizer.nextToken();
         				arguments.put("StartTime", starttime);
         				mintimevalue = true;
