@@ -6,6 +6,9 @@ import java.io.FileNotFoundException;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -116,6 +119,8 @@ public class EDFBuilder{
 		// Pulls the first mef file 
         String path = this.files[0].getAbsolutePath();
         
+        long daysBetweenInputAndBase = 0;
+        
         // Opens the first Mef file from our list of files
        try (RandomAccessFile file = new RandomAccessFile(path, "r")) {
     	   	
@@ -161,6 +166,7 @@ public class EDFBuilder{
                 pagesum += (page.values.length);
                 int recordsnum = pagesum * numsignals;
                 arguments.put("Recordsnum", recordsnum);
+                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yy");
 
                 
             	if (previousPage == null) {
@@ -170,12 +176,14 @@ public class EDFBuilder{
             		// can be improved 
             		StringTokenizer tokenizer = new StringTokenizer(date, " ");
             		startdate = tokenizer.nextToken();
-            		arguments.put("StartDate", startdate);
+                    LocalDate inputDate = LocalDate.parse(startdate, formatter);
+                    LocalDate baseDate = LocalDate.of(2000, 1, 1);
+                    daysBetweenInputAndBase = ChronoUnit.DAYS.between(inputDate, baseDate);
+                    LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
+                    String shiftedDateStr = shiftedDate.format(formatter);
+            		arguments.put("StartDate", shiftedDateStr);
             		starttime = tokenizer.nextToken();
             		arguments.put("StartTime", starttime);
-            		
-                    double totaltimeinblock = (double)(page.timeEnd - page.timeStart);
-                    double numentries = (totaltimeinblock * Math.pow(10, 6)) * (1/samplingfreq); 
                     
         			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
         			System.out.println("Number of Entries in First Block: " + page.values.length);
@@ -201,6 +209,10 @@ public class EDFBuilder{
             			// can be improved 
         				StringTokenizer tokenizer = new StringTokenizer(date, " ");
         				startdate = tokenizer.nextToken();
+        				LocalDate inputDate = LocalDate.parse(startdate, formatter);
+                        LocalDate shiftedDate = inputDate.minusDays(daysBetweenInputAndBase);
+                        String shiftedDateStr = shiftedDate.format(formatter);
+                		arguments.put("StartDate", shiftedDateStr);
         				arguments.put("StartDate", startdate);
         				starttime = tokenizer.nextToken();
         				arguments.put("StartTime", starttime);
@@ -229,6 +241,7 @@ public class EDFBuilder{
             e.printStackTrace();
         }
 	}
+
 
 	private int readAndWriteBlocks(String startdate, String starttime, long abs_starttime, long numBlocks,
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
