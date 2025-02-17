@@ -362,7 +362,7 @@ public class EDFBuilder{
 		arguments.put("Physicalmax", physicalMax);
 		arguments.put("Physicalmin", physicalMin);
 		arguments.put("SubjID", subjectid);
-		arguments.put("Signalnum", numsignals);						
+		arguments.put("Signalnum", numsignals);		
 
 
 		// Write header for the new file

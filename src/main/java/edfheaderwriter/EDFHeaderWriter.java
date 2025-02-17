@@ -2,8 +2,12 @@ package edfheaderwriter;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.HashMap;
+
+import com.google.common.io.Files;
+
 import edu.upenn.cis.eeg.mef.mefstreamer.FieldDetails;
 
 //import edu.upenn.cis.eeg.mef.mefstreamer.MefHeader2;
@@ -128,28 +132,76 @@ public class EDFHeaderWriter {
 	    for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
 	    for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
 
+	    
+//        byte[] existingContent; 
+//        
+//	    try (FileInputStream fis = new FileInputStream(EDFPath)) {
+//	        existingContent = fis.readNBytes(numBytes);
+//	    } catch (IOException e) {
+//	        System.err.println("Error reading existing file content: " + e.getMessage());
+//	        e.printStackTrace();
+//	        return -1;
+//	    }
 
-        byte[] existingContentBuffer = new byte[256]; 
-       // byte[] combinedContent;
-        
-        try (RandomAccessFile raf = new RandomAccessFile(EDFPath, "rw")) {
-            // Write the header at the beginning of the file
-            raf.write(header);
+	    
+	    // Combine header and existing content
+//	    byte[] combinedContent = new byte[header.length + existingContent.length];
+//	    System.arraycopy(header, 0, combinedContent, 0, header.length);
+//	    System.arraycopy(existingContent, 0, combinedContent, header.length, existingContent.length);
 
-            // Read and write the remaining content after the header
-            int bytesRead;
-            while ((bytesRead = raf.read(existingContentBuffer)) != -1) {
-                raf.write(existingContentBuffer, 0, bytesRead);
-            }
-
-        } catch (IOException e) {
-            System.err.println("Error reading or writing file: " + e.getMessage());
-            return -1;
-        }
-
+//	    // Write combined content back to file
+//	    try (FileOutputStream out = new FileOutputStream(EDFPath)) {
+//	        out.write(combinedContent);
+//	        out.close();
+//	    } catch (IOException e) {
+//	        System.err.println("Error writing combined content to file: " + e.getMessage());
+//	        e.printStackTrace();
+//	        return -1;
+//	    }
+	    try {
+			prepend(EDFPath, header);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
         System.out.println("EDF header written successfully. " + offset + " bytes written.");
         return offset;  // Return total bytes written to header
     }
+	
+	private static void prepend(String EDFFile, byte[] header) throws IOException {
+        // We can play around with the buffer size...this is 512KB for no reason other than to choose a size
+        int BUFFER_SIZE = 512 * 1024; 
+        
+        // Written EDF with data loaded file path
+        File originalFile = new File(EDFFile);
+
+        // Temp file for building combined data (HEADER on top, DATA on bottom)
+        File tempFile = new File(EDFFile + ".tmp");
+
+        // Make sure file exists
+        if (!originalFile.exists()) {
+            throw new FileNotFoundException("File not found: " + EDFFile);
+        }
+
+        try (FileOutputStream outputStream = new FileOutputStream(tempFile); // Stream out to temp file
+             FileInputStream inputStream = new FileInputStream(originalFile); // EDF File
+             BufferedOutputStream bufferedOutput = new BufferedOutputStream(outputStream, BUFFER_SIZE)) { // Buffer Output
+
+            // Write the header first
+            bufferedOutput.write(header);
+            // HEADER IS WRITTEN TO FILE ON TOP. MOVE ONTO DATA
+
+            // Same thing from before :) You had the right approach all along
+            byte[] buffer = new byte[BUFFER_SIZE];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) { // Fills up buffer with data from input stream (ie data file)
+                bufferedOutput.write(buffer, 0, bytesRead); // Writes out to the temp file
+            }
+        }
+
+        // Quick replace...should be near instantaneous according to stackoverflow
+        Files.move(tempFile, originalFile);//, StandardCopyOption.REPLACE_EXISTING);
+	}
     
     // Helper method to write a string to the header byte array
     private static int writeStringToHeader(String str, byte[] header, int offset, int length) {
