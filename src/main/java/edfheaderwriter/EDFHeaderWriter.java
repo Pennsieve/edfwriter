@@ -70,6 +70,22 @@ public class EDFHeaderWriter {
 
         // Need to update this too
         for (int i = 0; i < numSignals; i++) {
+        	
+        	boolean bEKG = labels.get(i).indexOf("EKG") >= 0;
+        	boolean bEEG = labels.get(i).indexOf("EEG") >= 0;
+        	boolean bECG = labels.get(i).indexOf("ECG") >= 0;
+
+        	if (bEKG && !bECG) {
+        		// Replace EKG with ECG
+        	    signalLabels[i] = "ECG" + labels.get(i); 
+        	    // Add EEG if neither ECG nor EEG is present
+        	} else if (!bEEG && !bECG) {
+        	    signalLabels[i] = "EEG" + labels.get(i); 
+        	 // If EEG or ECG already in the label, just keep it
+        	} else {
+        	    signalLabels[i] = labels.get(i); 
+        	}
+
         	boolean b = labels.get(i).indexOf("EKG") >= 0;  
         	if (b == true) {
         		signalLabels[i] = "ECG" + labels.get(i); // 16 bytes each
@@ -132,32 +148,6 @@ public class EDFHeaderWriter {
 	    for (String samples : numSamples) offset = writeStringToHeader(samples, header, offset, 8);
 	    for (int i = 0; i < numSignals; i++) offset = writeStringToHeader("", header, offset, 32);  // Reserved
 
-	    
-//        byte[] existingContent; 
-//        
-//	    try (FileInputStream fis = new FileInputStream(EDFPath)) {
-//	        existingContent = fis.readNBytes(numBytes);
-//	    } catch (IOException e) {
-//	        System.err.println("Error reading existing file content: " + e.getMessage());
-//	        e.printStackTrace();
-//	        return -1;
-//	    }
-
-	    
-	    // Combine header and existing content
-//	    byte[] combinedContent = new byte[header.length + existingContent.length];
-//	    System.arraycopy(header, 0, combinedContent, 0, header.length);
-//	    System.arraycopy(existingContent, 0, combinedContent, header.length, existingContent.length);
-
-//	    // Write combined content back to file
-//	    try (FileOutputStream out = new FileOutputStream(EDFPath)) {
-//	        out.write(combinedContent);
-//	        out.close();
-//	    } catch (IOException e) {
-//	        System.err.println("Error writing combined content to file: " + e.getMessage());
-//	        e.printStackTrace();
-//	        return -1;
-//	    }
 	    try {
 			prepend(EDFPath, header);
 		} catch (IOException e) {
