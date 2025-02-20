@@ -420,6 +420,14 @@ public class EDFBuilder{
  			// Need to update this so it actually works 
 			// Iterate over values to determine value to divide by
 			 int start = totalSamples / 10000;  
+			 if (start == 0) {
+				 if (0 <= totalSamples && totalSamples >= 999) {
+					 start = totalSamples / 10; 
+				 }
+				 else if (1000 <= totalSamples && totalSamples >= 9999) {
+					 start = totalSamples / 100; 
+				 }
+			 }
 
 
 			for (samplesPerRecord = start; samplesPerRecord <= maxSamplesPerRecord; samplesPerRecord++) {
