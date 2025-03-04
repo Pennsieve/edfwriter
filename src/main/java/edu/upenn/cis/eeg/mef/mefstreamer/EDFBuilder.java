@@ -3,7 +3,7 @@ package edu.upenn.cis.eeg.mef.mefstreamer;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-import java.io.FileWriter;
+//import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.time.LocalDate;
@@ -15,7 +15,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 
-import org.apache.commons.compress.utils.IOUtils;
+//import org.apache.commons.compress.utils.IOUtils;
 
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
@@ -128,11 +128,10 @@ public class EDFBuilder{
     	   // Get some file info from MEFStreamer
         	MEFStreamer streamer = new MEFStreamer(file);
         	MefHeader2 header = streamer.getMEFHeader();
-        	
-                
+
                  
             long abs_starttime = header.getRecordingStartTime();
-            System.out.println("Absolute Start Time: " + abs_starttime);
+            //System.out.println("Absolute Start Time: " + abs_starttime);
             // Get number of blocks from MEF file
             long numBlocks = streamer.getNumberOfBlocks();
             System.out.println("Num Blocks: " + numBlocks + " blocks.");
@@ -173,7 +172,7 @@ public class EDFBuilder{
                 
             	if (previousPage == null) {
             		absStartTime = page.timeStart;
-            		System.out.println("Start Time: " + page.timeStart);
+            		//System.out.println("Start Time: " + page.timeStart);
             		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
             		// can be improved 
             		StringTokenizer tokenizer = new StringTokenizer(date, " ");
@@ -188,7 +187,7 @@ public class EDFBuilder{
             		arguments.put("StartTime", starttime);
                     
         			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
-        			System.out.println("Number of Entries in First Block: " + page.values.length);
+        			//System.out.println("Number of Entries in First Block: " + page.values.length);
         			RandomAccessFile openFile = new RandomAccessFile(path,"r");
         			MEFStreamer nextpagestreamer = new MEFStreamer(openFile);
         			List<TimeSeriesPage> nextPages = nextpagestreamer.getNextBlocks((int) 2);
@@ -230,7 +229,7 @@ public class EDFBuilder{
             	previousPage = page;
                 runningMax = 0; 
             	runningMin = 0; 
-            	
+            	streamer.close();            	
               
             	
             	
@@ -336,7 +335,7 @@ public class EDFBuilder{
 		//duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
 		//int sampfreq = (int) samplingfreq;
 		double actual_duration = pagesum/samplingfreq;
-		System.out.println("Actual Duration: " + actual_duration);
+		//System.out.println("Actual Duration: " + actual_duration);
 		arguments.put("Duration", actual_duration);
 		
 		// Opens up all files, finds if they are within the range, scales, and then 
@@ -371,8 +370,8 @@ public class EDFBuilder{
 		}
 
 		// Write out data into the edf
-		System.out.println("PhysicalMax: " + physicalMax);
-		System.out.println("PhysicalMin: " + physicalMin);
+		//System.out.println("PhysicalMax: " + physicalMax);
+		//System.out.println("PhysicalMin: " + physicalMin);
 		System.out.println("Start Date: "  + startdate);
 		System.out.println("Start Time: "  + starttime);
 		arguments.put("Physicalmax", physicalMax);
