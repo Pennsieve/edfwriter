@@ -234,7 +234,7 @@ public class EDFBuilder{
             	
             	
             } // This is the loop for each block within a mef file
-                
+            streamer.close();
 
             
         } catch (IOException e) {
