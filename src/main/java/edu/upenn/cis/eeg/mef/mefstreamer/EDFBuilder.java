@@ -6,6 +6,7 @@ import java.io.FileNotFoundException;
 //import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -374,6 +375,8 @@ public class EDFBuilder{
 		//System.out.println("PhysicalMin: " + physicalMin);
 		System.out.println("Start Date: "  + startdate);
 		System.out.println("Start Time: "  + starttime);
+		Instant instant = Instant.now();
+ 		System.out.println("UTC Time: " + instant);
 		arguments.put("Physicalmax", physicalMax);
 		arguments.put("Physicalmin", physicalMin);
 		arguments.put("SubjID", subjectid);
