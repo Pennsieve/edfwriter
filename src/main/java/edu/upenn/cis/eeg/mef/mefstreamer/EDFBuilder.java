@@ -6,6 +6,7 @@ import java.io.FileNotFoundException;
 //import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
@@ -343,10 +344,9 @@ public class EDFBuilder{
 			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
 			MefHeader2 headervoltage = substreamer.getMEFHeader();
 
-			double conversion_factor = headervoltage.getVoltageConversionFactor();
-
+			double conversion_factor = headervoltage.getVoltageConversionFactor();				
+					
 			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
-
 
 			subcounter++;
 			substreamer.close();
@@ -371,6 +371,8 @@ public class EDFBuilder{
 		//System.out.println("PhysicalMin: " + physicalMin);
 		System.out.println("Start Date: "  + startdate);
 		System.out.println("Start Time: "  + starttime);
+		Instant instant = Instant.now();
+		System.out.println("UTC Time: " + instant);
 		arguments.put("Physicalmax", physicalMax);
 		arguments.put("Physicalmin", physicalMin);
 		arguments.put("SubjID", subjectid);
@@ -478,7 +480,18 @@ public class EDFBuilder{
 		}
 		else {
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) endrange);
+			//System.out.println("Subpage size: " + subpage.size());
 			for (int i = startrange; i < endrange; i++) {
+				
+				/*
+				 * if (i >= subpage.size()) { System.out.println("Index " + i +
+				 * " is out of bounds for subpage list."); break; }
+				 * 
+				 * TimeSeriesPage page = subpage.get(i); if (page.values == null ||
+				 * page.values.length == 0) {
+				 * System.out.println("Values array is empty or null for index " + i); continue;
+				 * }
+				 */
 
 				subcounter++;
 
@@ -512,9 +525,10 @@ public class EDFBuilder{
 
 			}
 		}
+
 		return subcounter;
 	}
-
+ 
 }
                 	
 
