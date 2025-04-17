@@ -1,9 +1,7 @@
 package edu.upenn.cis.eeg.mef.mefstreamer;
 
-import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileNotFoundException;
-//import java.io.FileWriter;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.time.Instant;
@@ -15,8 +13,6 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
-
-//import org.apache.commons.compress.utils.IOUtils;
 
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
@@ -149,8 +145,6 @@ public class EDFBuilder{
             
             long absStartTime = 0;
             
-            double newendrange = 0;
-            
             // Initialize the arguments to be inputed into the edf header writer 
             arguments = new HashMap<>();
             arguments.put("SubjID", subjectid);
@@ -173,7 +167,6 @@ public class EDFBuilder{
                 
             	if (previousPage == null) {
             		absStartTime = page.timeStart;
-            		//System.out.println("Start Time: " + page.timeStart);
             		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
             		// can be improved 
             		StringTokenizer tokenizer = new StringTokenizer(date, " ");
@@ -188,7 +181,6 @@ public class EDFBuilder{
             		arguments.put("StartTime", starttime);
                     
         			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
-        			//System.out.println("Number of Entries in First Block: " + page.values.length);
         			RandomAccessFile openFile = new RandomAccessFile(path,"r");
         			MEFStreamer nextpagestreamer = new MEFStreamer(openFile);
         			List<TimeSeriesPage> nextPages = nextpagestreamer.getNextBlocks((int) 2);
@@ -247,17 +239,7 @@ public class EDFBuilder{
 	private int readAndWriteBlocks(String startdate, String starttime, long abs_starttime, long numBlocks,
 			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
 			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
-		// Write out discontinuity loop here
-		//if (page.timeStart != absStartTime) {
-			//double totaltime = page.timeStart + (page.values.length - 1) * timeIncrement;
-			//double calculated_sampfreq = pagesum/((totaltime - absStartTime)*Math.pow(10,-6));
-			//if (calculated_sampfreq > (2 * samplingfreq)){
-			//	System.out.println("Page Sum: " + pagesum);
-			//	System.out.println("Calculated Samp Freq: " + calculated_sampfreq);
-			//	System.out.println("Real Samp Freq: " + samplingfreq);
-				//Write out an interpolated value 
-			//}
-	//	}
+		
 		long timeDifference = nextBlockStartTime - lastEntryTime;
 		endrange++;
 
@@ -312,9 +294,6 @@ public class EDFBuilder{
 		else {
 			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
 			for (int i = startrange; i < endrange; i++) {
-				
-				//subtwocounter++;
-	        	
 
 				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
 				for (int j =0; j < subtwopage.get(i).values.length; j++) {
@@ -332,11 +311,7 @@ public class EDFBuilder{
 	}
 	
 	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
-		//long endblocktime = page.timeEnd;
-		//duration = (endblocktime - absStartTime)/(Math.pow(10, 6));
-		//int sampfreq = (int) samplingfreq;
 		double actual_duration = pagesum/samplingfreq;
-		//System.out.println("Actual Duration: " + actual_duration);
 		arguments.put("Duration", actual_duration);
 		
 		// Opens up all files, finds if they are within the range, scales, and then 
@@ -352,8 +327,6 @@ public class EDFBuilder{
 			MefHeader2 headervoltage = substreamer.getMEFHeader();
 			
             double conversion_factor = headervoltage.getVoltageConversionFactor();
-            System.out.println("Voltage Conversion Factor: " + conversion_factor);
-			
 			
 			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
 			
@@ -371,8 +344,6 @@ public class EDFBuilder{
 		}
 
 		// Write out data into the edf
-		//System.out.println("PhysicalMax: " + physicalMax);
-		//System.out.println("PhysicalMin: " + physicalMin);
 		System.out.println("Start Date: "  + startdate);
 		System.out.println("Start Time: "  + starttime);
 		Instant instant = Instant.now();
