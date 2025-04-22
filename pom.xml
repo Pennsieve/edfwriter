@@ -110,6 +110,11 @@
             <version>4.7.0.Final</version>
         </dependency>
         <dependency>
+    		<groupId>org.jfree</groupId>
+    		<artifactId>jfreechart</artifactId>
+    		<version>1.5.3</version>
+		</dependency>
+        <dependency>
             <groupId>org.jboss.resteasy</groupId>
             <artifactId>resteasy-jackson-provider</artifactId>
             <version>2.2.1.GA</version>

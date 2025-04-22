@@ -1,5 +1,7 @@
 package edu.upenn.cis.eeg.mef.mefstreamer;
 
+import java.awt.BasicStroke;
+import java.awt.Color;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -17,6 +19,17 @@ import java.util.StringTokenizer;
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 import edu.upenn.cis.edfdatawriter.EDFDataWriter;
+
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.ValueMarker;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.data.statistics.HistogramDataset;
+import org.jfree.chart.ui.RectangleAnchor;
+import org.jfree.chart.ui.RectangleEdge;
+
+import javax.swing.*;
 
 public class EDFBuilder{
 	
@@ -247,10 +260,10 @@ public class EDFBuilder{
 
 		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
 		//delete existing files before rerunning!
-		File delFile = new File(outputEDF); //opens file
-		if (delFile.exists()) {
-			delFile.delete();
-		}
+		//File delFile = new File(outputEDF); //opens file
+		//if (delFile.exists()) {
+		//	delFile.delete();
+		//}
 
 		// Check if the time difference requires a new file (or new channel)
 		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
@@ -318,7 +331,7 @@ public class EDFBuilder{
 		// writes to the edf file
 		for (File currentFile : this.files) {
 			int subcounter = 0;
-			int subtwocounter = 0;
+			//int subtwocounter = 0;
 			runningMax = 0;
 			runningMin = 0;
 			String currentpath = currentFile.getAbsolutePath();
@@ -333,9 +346,9 @@ public class EDFBuilder{
 			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
 			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
 			
-			writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
+			//writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
 
-            subcounter++;
+            //subcounter++;
             substreamer.close();
             subtwostreamer.close();
             //  Add the physical max dimension here and index to be the first in the list
@@ -353,11 +366,11 @@ public class EDFBuilder{
 		arguments.put("SubjID", subjectid);
 		arguments.put("Signalnum", numsignals);	
 		
-		calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
+		//calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
 		
 		// Write header for the new file
-		EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-		headerWriter.write(outputEDF);
+		//EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
+		//headerWriter.write(outputEDF);
 	}
 	
 	private void calculatedatarecords(double samplingfreq, int pagesum, int numsignals, HashMap<String, Object> arguments) {
@@ -440,7 +453,9 @@ public class EDFBuilder{
 
 
 	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer) throws IOException {
-		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
+		int[] values = null;
+		List<Integer> appendedValues = new ArrayList<>();
+		if ((startrange == 0) && (endrange == 1)) { //(subcounter == 0) && 
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) 1);
 			// Get min and max from values by streaming them in
 			localMin = Arrays.stream(subpage.get(0).values).min().orElseThrow();
@@ -459,7 +474,15 @@ public class EDFBuilder{
 			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) endrange);
 			for (int i = startrange; i < endrange; i++) {
 
-				subcounter++;
+				//subcounter++;
+		
+
+	            // Collect values for the histogram
+	            values = subpage.get(i).values;
+	            
+	            for (int value : values) {
+	                appendedValues.add(value);
+	            }
 
 				if (conversion_factor < 0) {
 					// Get min and max from values by streaming them in
@@ -490,9 +513,92 @@ public class EDFBuilder{
 				}
 
 			}
+	     
+	        HistogramDataset dataset = createHistogramDataset(appendedValues);
+	        
+	        double[] rawvalues = appendedValues.stream().mapToDouble(Integer::doubleValue).toArray();
+
+	        // Calculate mean and standard deviation
+	        double sum = 0.0;
+	        for (double v : rawvalues) sum += v;
+	        double mean = sum / rawvalues.length;
+
+	        double squaredDiffs = 0.0;
+	        for (double v : rawvalues) squaredDiffs += (v - mean) * (v - mean);
+	        double stdDev = Math.sqrt(squaredDiffs / rawvalues.length);
+
+	        // Count how many values fall outside of 3 std
+	        int outlierCount = 0;
+	        double lowerBound = mean - 3 * stdDev;
+	        double upperBound = mean + 3 * stdDev;
+	        for (double v : rawvalues) {
+	        	if (v < lowerBound || v > upperBound) outlierCount++;
+	        }
+	        System.out.println("Number of values for edf " + (counter) + "outside 3 standard deviations: " + outlierCount);
+
+
+	        // Create the chart
+	        JFreeChart chart = createChart(dataset, counter);
+	        XYPlot plot = (XYPlot) chart.getPlot();
+	        
+	     // Add vertical lines at 3 std
+	        ValueMarker lowerMarker = new ValueMarker(lowerBound);
+	        lowerMarker.setPaint(Color.RED);
+	        lowerMarker.setStroke(new BasicStroke(2.0f));
+	        lowerMarker.setLabel("-3σ");
+	        lowerMarker.setLabelAnchor(RectangleAnchor.BOTTOM_RIGHT);         
+	        //lowerMarker.setLabelAnchor(RectangleEdge.BOTTOM);
+	        plot.addDomainMarker(lowerMarker);
+
+	        ValueMarker upperMarker = new ValueMarker(upperBound);
+	        upperMarker.setPaint(Color.RED);
+	        upperMarker.setStroke(new BasicStroke(2.0f));
+	        upperMarker.setLabel("+3σ");
+	        upperMarker.setLabelAnchor(RectangleAnchor.TOP_RIGHT); 
+	        //upperMarker.setLabelAnchor(RectangleEdge.BOTTOM);
+	        plot.addDomainMarker(upperMarker);
+	        
+	        JFrame frame = new JFrame("Distribution Chart (Histogram)");
+	        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+	        frame.getContentPane().add(new ChartPanel(chart));
+	        frame.pack();
+	        frame.setVisible(true);
 		}
 		return subcounter;
 	}
+
+
+	private static HistogramDataset createHistogramDataset(List<Integer> data) {
+	  
+	    double[] doubleData = new double[data.size()];
+	    
+	    for (int i = 0; i < data.size(); i++) {
+	        doubleData[i] = data.get(i);  
+	    }
+
+	    // Create the histogram dataset
+	    HistogramDataset dataset = new HistogramDataset();
+	    dataset.addSeries("Data", doubleData, 30); 
+	    return dataset;
+	}
+
+	
+
+    private static JFreeChart createChart(HistogramDataset dataset, int counter) {
+        // Create the histogram chart
+        return ChartFactory.createHistogram(
+                "Data Distribution"  + (counter),    // Title
+                "Value",                // X-axis label
+                "Frequency",            // Y-axis label
+                dataset,                // Dataset
+                org.jfree.chart.plot.PlotOrientation.VERTICAL, // Orientation (Vertical)
+                true,                   // Include legend
+                true,                   // Tooltips
+                false                   // URLs
+        );
+    }
+
 }
+
                 	
 
