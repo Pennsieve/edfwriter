@@ -535,6 +535,8 @@ public class EDFBuilder{
 	        	if (v < lowerBound || v > upperBound) outlierCount++;
 	        }
 	        System.out.println("Number of values for edf " + (counter) + "outside 3 standard deviations: " + outlierCount);
+	        System.out.println("Number of values for edf " + (counter) + ": " + rawvalues.length);
+	        System.out.println("Percentage of values that would be removed with 3 stds " + (outlierCount/(rawvalues.length))*100);
 
 
 	        // Create the chart
