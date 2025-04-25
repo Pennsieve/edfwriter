@@ -295,9 +295,10 @@ public class EDFBuilder{
 			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
 			for (int i = startrange; i < endrange; i++) {
 
-				double scalingfactor = (runningMax - runningMin)/(digitalMax  - digitalMin);
+				double gain = (runningMax - runningMin)/(digitalMax  - digitalMin);
+				double offset = (-1 * digitalMin * gain) + runningMin;
 				for (int j =0; j < subtwopage.get(i).values.length; j++) {
-					subtwopage.get(i).values[j] = (int) ((scalingfactor *subtwopage.get(i).values[j]) * conversion_factor); 
+					subtwopage.get(i).values[j] = (int) ((((subtwopage.get(i).values[j]) * conversion_factor) - offset)/ gain); 
 					subtwocounter++;
 				}
 
