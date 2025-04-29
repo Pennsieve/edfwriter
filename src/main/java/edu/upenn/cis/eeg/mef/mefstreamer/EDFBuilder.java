@@ -16,6 +16,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.StringTokenizer;
 
+import javax.swing.JFrame;
+import javax.swing.WindowConstants;
+
 import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 import edu.upenn.cis.edfdatawriter.EDFDataWriter;
@@ -23,6 +26,7 @@ import edu.upenn.cis.edfdatawriter.EDFDataWriter;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
+<<<<<<< Updated upstream
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
@@ -37,6 +41,16 @@ import org.jfree.chart.ui.RectangleEdge;
 
 import javax.swing.*;
 
+=======
+import org.jfree.chart.axis.DateAxis;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.data.time.Second;
+import org.jfree.data.time.TimeSeries;
+import org.jfree.data.time.TimeSeriesCollection;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
+
+>>>>>>> Stashed changes
 public class EDFBuilder{
 
 	File[] files;
@@ -307,8 +321,38 @@ public class EDFBuilder{
 		//}
 
 		// Check if the time difference requires a new file (or new channel)
+<<<<<<< Updated upstream
 		//if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
 		System.out.println("Discontinuity Found: " + page.timeStart);
+=======
+		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
+			System.out.println("Discontinuity Found: " + page.timeStart);
+
+			double conversion_factor=fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
+
+			counter++;
+			
+			if (2000 >= startrange && 2000 <= endrange) {
+				streamAndPlotData(this.files, timeIncrement, conversion_factor);
+			}
+
+			// Specific to within file
+			startrange = endrange;
+			mintimevalue = false;
+			physicalMax = new ArrayList<>();
+			physicalMin = new ArrayList<>();
+			duration = 0;
+			pagesum = 0;
+
+		}
+		else if (endrange == numBlocks) {
+
+			System.out.println("Final EDF Writing: " + page.timeStart);
+
+			double conversion_factor=fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
+
+			System.out.println("Final Count (End Range): " + endrange);
+>>>>>>> Stashed changes
 
 
 		//fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq, timeIncrement);
@@ -364,11 +408,20 @@ public class EDFBuilder{
 			}
 		}
 	}
+<<<<<<< Updated upstream
 
 	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq, long timeIncrement) throws IOException {
 		double actual_duration = pagesum/samplingfreq;
 		arguments.put("Duration", actual_duration);
 
+=======
+	
+	private double fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
+		double actual_duration = pagesum/samplingfreq;
+		arguments.put("Duration", actual_duration);
+		double conversion_factor = 0;
+		
+>>>>>>> Stashed changes
 		// Opens up all files, finds if they are within the range, scales, and then 
 		// writes to the edf file
 		for (File currentFile : this.files) {
@@ -380,6 +433,7 @@ public class EDFBuilder{
 			RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
 			MefHeader2 headervoltage = substreamer.getMEFHeader();
+<<<<<<< Updated upstream
 
 
 
@@ -389,6 +443,18 @@ public class EDFBuilder{
 
 			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
 			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
+=======
+			
+            conversion_factor = headervoltage.getVoltageConversionFactor();
+   
+			
+			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
+			
+			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
+			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
+			
+			//writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
+>>>>>>> Stashed changes
 
 			//writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
 
@@ -409,9 +475,15 @@ public class EDFBuilder{
 		arguments.put("Physicalmin", physicalMin);
 		arguments.put("SubjID", subjectid);
 		arguments.put("Signalnum", numsignals);	
+<<<<<<< Updated upstream
 
 		//calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
 
+=======
+		
+		//calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
+		return conversion_factor;
+>>>>>>> Stashed changes
 		// Write header for the new file
 		//EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
 		//headerWriter.write(outputEDF);
@@ -494,7 +566,10 @@ public class EDFBuilder{
 		}
 
 	}
+<<<<<<< Updated upstream
 
+=======
+>>>>>>> Stashed changes
 
 
 	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer, long timeIncrement, RandomAccessFile currentwofile) throws IOException {
@@ -589,6 +664,7 @@ public class EDFBuilder{
 		return subcounter;
 	}
 
+<<<<<<< Updated upstream
 
 
 
@@ -596,4 +672,95 @@ public class EDFBuilder{
 }
 
 
+=======
+	private void streamAndPlotData(File[] files, long timeIncrement, double conversion_factor) throws IOException {
+		int startrange = 2000;
+		int endrange = 2001;
+
+		for (int fileIndex = 0; fileIndex < files.length; fileIndex++) {
+		    File file = files[fileIndex];
+			// Prepare lists for this specific file
+			List<Double> xAxisTimes = new ArrayList<>();
+			List<Integer> yAxisValues = new ArrayList<>();
+			List<Integer> convertedYAxisValues = new ArrayList<>(); 
+			List<Integer> scaledYAxisValues = new ArrayList<>(); 
+
+			RandomAccessFile raf = new RandomAccessFile(file.getAbsolutePath(), "r");
+			MEFStreamer streamer = new MEFStreamer(raf);
+
+			List<TimeSeriesPage> pages = streamer.getNextBlocks(endrange);
+
+			double currentTime = 0;
+
+
+			for (int i = startrange; i < endrange && i < pages.size(); i++) {
+				TimeSeriesPage page = pages.get(i);
+
+				double gain = (runningMax - runningMin)/(digitalMax  - digitalMin);
+				double offset = (-1 * digitalMin * gain) + runningMin;
+
+				if (i == startrange) {
+					currentTime = page.timeStart;
+					System.out.println("Current Time: " + currentTime + " from file: " + file.getName());
+				}
+
+				for (int value : page.values) {
+					xAxisTimes.add(currentTime);
+					yAxisValues.add(value);
+					convertedYAxisValues.add((int) (value * conversion_factor));
+					scaledYAxisValues.add((int) (((value * conversion_factor) - offset)/ gain));
+					currentTime += timeIncrement;
+				}
+			}
+
+			streamer.close();
+
+			// Create and show the plot for this file
+			TimeSeriesPlot plot = new TimeSeriesPlot(xAxisTimes, yAxisValues);
+			plot.setSize(1200, 600);
+			plot.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+			plot.setTitle("Raw MEF, no conversion from " + file.getName()); 
+			plot.setVisible(true);
+
+			TimeSeriesPlot plot2 = new TimeSeriesPlot(xAxisTimes, convertedYAxisValues);
+			plot2.setSize(1200, 600);
+			plot2.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+			plot2.setTitle("Raw MEF with conversion from " + file.getName()); 
+			plot2.setVisible(true);
+
+			TimeSeriesPlot plot3 = new TimeSeriesPlot(xAxisTimes, convertedYAxisValues);
+			plot3.setSize(1200, 600);
+			plot3.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+			plot3.setTitle("Scaled MEF with conversion from " + file.getName()); 
+			plot3.setVisible(true);
+
+		}
+	}
+
+
+	public class TimeSeriesPlot extends JFrame {
+
+		public TimeSeriesPlot(List<Double> xData, List<Integer> yData) {
+			XYSeries series = new XYSeries("Raw Signal");
+
+			for (int i = 0; i < xData.size(); i++) {
+				series.add(xData.get(i), yData.get(i));
+			}
+
+			XYSeriesCollection dataset = new XYSeriesCollection(series);
+			JFreeChart chart = ChartFactory.createXYLineChart(
+					"Blocks 2000 to 2001",
+					"Time (s)",
+					"Value",
+					dataset,
+					PlotOrientation.VERTICAL,
+					true, true, false);
+
+			ChartPanel panel = new ChartPanel(chart);
+			setContentPane(panel);
+		}
+	}
+}
+                	
+>>>>>>> Stashed changes
 
