@@ -570,7 +570,7 @@ public class EDFBuilder{
 			plot2.setTitle("Raw MEF with conversion from " + file.getName()); 
 			plot2.setVisible(true);
 
-			TimeSeriesPlot plot3 = new TimeSeriesPlot(xAxisTimes, convertedYAxisValues);
+			TimeSeriesPlot plot3 = new TimeSeriesPlot(xAxisTimes, scaledYAxisValues);
 			plot3.setSize(1200, 600);
 			plot3.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 			plot3.setTitle("Scaled MEF with conversion from " + file.getName()); 
