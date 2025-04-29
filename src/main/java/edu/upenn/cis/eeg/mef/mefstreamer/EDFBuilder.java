@@ -275,7 +275,7 @@ public class EDFBuilder{
 
 			XYSeriesCollection dataset = new XYSeriesCollection(series);
 			JFreeChart chart = ChartFactory.createXYLineChart(
-					"Blocks 1000 to 1005",
+					"Blocks 2000 to 2001",
 					"Time (s)",
 					"Value",
 					dataset,
