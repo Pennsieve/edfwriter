@@ -25,7 +25,9 @@ import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.DateAxis;
+import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.XYPlot;
 import org.jfree.data.time.Second;
 import org.jfree.data.time.TimeSeries;
 import org.jfree.data.time.TimeSeriesCollection;
@@ -526,6 +528,7 @@ public class EDFBuilder{
 			List<Integer> yAxisValues = new ArrayList<>();
 			List<Integer> convertedYAxisValues = new ArrayList<>(); 
 			List<Integer> scaledYAxisValues = new ArrayList<>(); 
+			List<Integer> wrongScaledYAxisValues = new ArrayList<>(); 
 
 			RandomAccessFile raf = new RandomAccessFile(file.getAbsolutePath(), "r");
 			MEFStreamer streamer = new MEFStreamer(raf);
@@ -551,6 +554,7 @@ public class EDFBuilder{
 					yAxisValues.add(value);
 					convertedYAxisValues.add((int) (value * conversion_factor));
 					scaledYAxisValues.add((int) (((value * conversion_factor) - offset)/ gain));
+					wrongScaledYAxisValues.add((int) (value * conversion_factor * gain));
 					currentTime += timeIncrement;
 				}
 			}
@@ -575,6 +579,13 @@ public class EDFBuilder{
 			plot3.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
 			plot3.setTitle("Scaled MEF with conversion from " + file.getName()); 
 			plot3.setVisible(true);
+			
+			TimeSeriesPlot plot4 = new TimeSeriesPlot(xAxisTimes, wrongScaledYAxisValues);
+			plot4.setSize(1200, 600);
+			plot4.setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+			plot4.setTitle("Wrong Scaled MEF with conversion from " + file.getName()); 
+			plot4.setVisible(true);
+
 
 		}
 	}
@@ -584,6 +595,7 @@ public class EDFBuilder{
 
 		public TimeSeriesPlot(List<Double> xData, List<Integer> yData) {
 			XYSeries series = new XYSeries("Raw Signal");
+			
 
 			for (int i = 0; i < xData.size(); i++) {
 				series.add(xData.get(i), yData.get(i));
@@ -597,6 +609,10 @@ public class EDFBuilder{
 					dataset,
 					PlotOrientation.VERTICAL,
 					true, true, false);
+			
+		    XYPlot plot = chart.getXYPlot();
+		    NumberAxis yAxis = (NumberAxis) plot.getRangeAxis();
+		    yAxis.setAutoRangeIncludesZero(false);
 
 			ChartPanel panel = new ChartPanel(chart);
 			setContentPane(panel);
