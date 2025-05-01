@@ -1,5 +1,8 @@
 # MEF to EDF
 
+## Usage 
+This code converts .mef (MEf2) files into .edf (EDF) files. This is used for time series data, specifically eeg or ieeg data. This code is used to transfer all the data from ieeg.org to Pennsieve. 
+
 ## Running
 
 Application expects a single argument as an input.
