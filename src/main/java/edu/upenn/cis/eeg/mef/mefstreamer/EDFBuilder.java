@@ -220,8 +220,8 @@ public class EDFBuilder{
 
             		}
             	previousPage = page;
-                runningMax = 0; 
-            	runningMin = 0; 
+                runningMax = 1; 
+            	runningMin = -1; 
             	streamer.close();            	
               
             	
@@ -320,8 +320,8 @@ public class EDFBuilder{
 		for (File currentFile : this.files) {
 			int subcounter = 0;
 			int subtwocounter = 0;
-			runningMax = 0;
-			runningMin = 0;
+			runningMax = 1;
+			runningMin = -1;
 			String currentpath = currentFile.getAbsolutePath();
 			RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
 			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
