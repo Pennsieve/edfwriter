@@ -164,7 +164,7 @@ public class EDFBuilder{
                 arguments.put("Recordsnum", recordsnum);
                 DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yy");
 
-                
+                // If this is the first page of the data, find absolute start time
             	if (previousPage == null) {
             		absStartTime = page.timeStart;
             		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
@@ -172,11 +172,21 @@ public class EDFBuilder{
             		StringTokenizer tokenizer = new StringTokenizer(date, " ");
             		startdatepre = tokenizer.nextToken();
                     LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
-                    LocalDate baseDate = LocalDate.of(2000, 1, 1);
-                    daysBetweenInputAndBase = ChronoUnit.DAYS.between(inputDate, baseDate);
-                    LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
-                    startdate = shiftedDate.format(formatter);
+                    // Searches if the start date is in the month of January and year of 2000
+                    // If it is then, it keeps that date (accounts for days of recording loss
+                    // If it isn't, then the data was not de-id'd properly
+                    if (inputDate.getYear() != 2000 && inputDate.getMonthValue() != 1) {
+                    	System.out.println("Subject was not de-identified");
+                    	LocalDate baseDate = LocalDate.of(2000, 1, 1);
+                    	daysBetweenInputAndBase = ChronoUnit.DAYS.between(inputDate, baseDate);
+                    	LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
+                    	startdate = shiftedDate.format(formatter);
+                    }
+                    else {
+                    	startdate = inputDate.format(formatter);
+                    }
             		arguments.put("StartDate", startdate);
+            		// Start Time is maintained
             		starttime = tokenizer.nextToken();
             		arguments.put("StartTime", starttime);
                     
