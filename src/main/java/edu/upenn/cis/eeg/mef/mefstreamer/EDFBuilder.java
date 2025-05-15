@@ -268,8 +268,8 @@ public class EDFBuilder{
 		}
 
 		// Check if the time difference requires a new file (or new channel)
-		if (timeDifference > 2 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2 * timeIncrement && page.timeStart == abs_starttime) {
-			System.out.println("Discontinuity Found: " + page.timeStart);
+		if (timeDifference > 2.5 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2.5 * timeIncrement && page.timeStart == abs_starttime) {
+			System.out.println("Discontinuity Found: " + page.timeStart + " Difference: " + timeDifference);
 
 			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
 
