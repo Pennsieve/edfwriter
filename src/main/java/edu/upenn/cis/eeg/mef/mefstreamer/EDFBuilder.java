@@ -214,8 +214,13 @@ public class EDFBuilder{
         				StringTokenizer tokenizer = new StringTokenizer(date, " ");
         				startdatepre = tokenizer.nextToken();
         				LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
-                        LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
-                        startdate = shiftedDate.format(formatter);
+        	            if (inputDate.getYear() != 2000 && inputDate.getMonthValue() != 1) {
+        	            	LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
+        	            	startdate = shiftedDate.format(formatter);
+                           }
+                           else {
+                           	startdate= inputDate.format(formatter);
+                           }
                 		arguments.put("StartDate", startdate);
         				starttime = tokenizer.nextToken();
         				arguments.put("StartTime", starttime);
