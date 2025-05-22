@@ -4,8 +4,9 @@ package edu.upenn.cis.eeg.mef.mefstreamer;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
-
+import java.time.Instant;
 import java.util.HashMap;
+import java.time.Instant;
 
 
 /**
@@ -64,7 +65,9 @@ public class MEFStreamerMain {
 			e.printStackTrace();
 		}
         
-        System.out.println("REAL EDF MADE");
+        System.out.println("Complete!");
+		Instant instant = Instant.now();
+ 		System.out.println("End Time: " + instant);
     }
 
 }
