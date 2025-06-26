@@ -23,25 +23,37 @@ public class EDFDataWriter {
     	
     }
 
+//    public void write(int offset, int[] values) {
+//        // Create a single-dimensional array for signal data
+//        short[] data = new short[values.length];
+//
+//        // Convert int values to short and store them in the data array
+//        for (int i = 0; i < values.length; i++) {
+//            data[i] = (short) values[i];  // Convert int to short (clipping may happen here if values are too large)
+//        }
+//
+//        // Open EDF file in append mode
+//        try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
+//            // Seek to the point after the 256-byte header (don't hard-code this)
+//            raf.seek(raf.length());
+//
+//            // Write data records (we only need to write one record here because we are working with a flat data array)
+//            writeDataRecord(raf, data, values.length); // Pass the flat data array
+//            raf.close();
+//
+//            //System.out.println("Data records written successfully.");
+//        } catch (IOException e) {
+//            e.printStackTrace();
+//        }
+//    }
+    
     public void write(int offset, int[] values) {
-        // Create a single-dimensional array for signal data
-        short[] data = new short[values.length];
-
-        // Convert int values to short and store them in the data array
-        for (int i = 0; i < values.length; i++) {
-            data[i] = (short) values[i];  // Convert int to short (clipping may happen here if values are too large)
-        }
-
-        // Open EDF file in append mode
         try (RandomAccessFile raf = new RandomAccessFile(this.File, "rw")) {
-            // Seek to the point after the 256-byte header (don't hard-code this)
-            raf.seek(raf.length());
+            raf.seek(raf.length());  // Move to end of file (append)
 
-            // Write data records (we only need to write one record here because we are working with a flat data array)
-            writeDataRecord(raf, data, values.length); // Pass the flat data array
-            raf.close();
-
-            //System.out.println("Data records written successfully.");
+            // Write two dummy short values (e.g., 0 and 0)
+            raf.writeShort(0);
+            raf.writeShort(1);
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -52,6 +64,7 @@ public class EDFDataWriter {
      * Writes a single data record to the EDF file using a single-dimensional array.
      */
     private static void writeDataRecord(RandomAccessFile raf, short[] data, int numSamples) throws IOException {
+    	
         ByteBuffer buffer = ByteBuffer.allocate(numSamples * Short.BYTES); // numSamples * size of short
         buffer.order(ByteOrder.LITTLE_ENDIAN); // Ensure data is written in little-endian byte order
 
