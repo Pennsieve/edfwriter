@@ -7,334 +7,260 @@ import java.io.OutputStream;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
 
-public class EDFBuilder{
-	
-	File[] files;
-	String directoryPath;
-	String outputEDF;
-	String subjectid;
-	int numsignals;
-	HashMap<String,Object> arguments; 
-	
-    ArrayList<Double> physicalMax;
-    ArrayList<Double> physicalMin;
-    
-	double runningMax;
-    double runningMin;
-    
-    double localMin;
-    double localMax;
-    
-    double digitalMax;
-    double digitalMin;
-    
-    // Initialize variables for counter/startdate/starttime
-	int counter;
-	
-    int currentOffset;
-    boolean mintimevalue;
-    
-    int startrange;
-    int endrange;
-    
-    double duration;
-    
-	
-	
-	public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
-		this.files = mefFiles;
-		this.directoryPath = directoryPath;
-		this.subjectid = subjectid;
-		this.numsignals = numsignals;
-		this.arguments = null; 
-		
-        this.physicalMax = new ArrayList<>();
-        this.physicalMin = new ArrayList<>();
-        
-		this.runningMax = 1;
-		this.runningMin = -1;
-		
-		this.localMin = -1;
-		this.localMax = 1;
-		
-		this.digitalMax = 32767;
-		this.digitalMin = -32767;
-        
-        // Initialize variables for counter/startdate/starttime
-		this.counter = 0;
-		
-		this.currentOffset = 0;
-		this.mintimevalue = false;
-		
-        this.startrange = 0;
-        this.endrange = 0;
-        
-		System.out.println(this.files);
-	
-	}
-	
-	public void build() throws IOException {
-		// Outputs: BIN files and JSON files
+public class EDFBuilder {
 
-	    for (File inputFile : this.files) {
-	        final String fileName = inputFile.getName();
-	        final String baseName = (fileName.lastIndexOf('.') > 0)
-	                ? fileName.substring(0, fileName.lastIndexOf('.'))
-	                : fileName;
+    // Frame types
+    private static final int CHANNEL_META  = 1;
+    private static final int SEGMENT_START = 2;
+    private static final int SAMPLES_INT32 = 3;
+    private static final int SEGMENT_END   = 4;
+    private static final int END           = 5;
 
-	        final Path outDir = inputFile.getParentFile().toPath(); 
-	        final Path channelJsonPath = outDir.resolve(baseName + ".json");
+    private final File[] files;
+    private final String directoryPath;
+    private final String subjectid;
+    private final int numsignals;
 
-	        try (RandomAccessFile raf = new RandomAccessFile(inputFile.getAbsolutePath(), "r")) {
-	            // -- Open MEF and read header
-	            MEFStreamer streamer = new MEFStreamer(raf);
-	            MefHeader2 header = streamer.getMEFHeader();
+    public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
+        this.files = mefFiles;
+        this.directoryPath = directoryPath;
+        this.subjectid = subjectid;
+        this.numsignals = numsignals;
 
-	            // Header basics
-	            final double rateHz = header.getSamplingFrequency();
-	            final double periodUsExact = 1_000_000.0 / rateHz; 
-	            final long tolUs = Math.max(2L, (long) Math.ceil(0.002 * periodUsExact)); // Reasonable gap
+        System.err.println("JAVA: EDFBuilder init with " + (files == null ? 0 : files.length) + " files");
+    }
 
-	            // Channel classification by name
-	            String channelName = baseName;
-	            String lower = channelName.toLowerCase(Locale.ROOT);
-	            String typeStr, description;
-	            if (lower.contains("grid")) { typeStr = "ECOG"; description = "Electrocorticography"; }
-	            else if (lower.contains("seeg") || lower.contains("depth")) { typeStr = "SEEG"; description = "Stereoelectroencephalography"; }
-	            else if (lower.contains("eeg")) { typeStr = "EEG"; description = "Electroencephalography"; }
-	            else if (lower.contains("eog")) { typeStr = "EOG"; description = "Electrooculography"; }
-	            else if (lower.contains("ecg") || lower.contains("ekg")) { typeStr = "ECG"; description = "Electrocardiography"; }
-	            else if (lower.contains("emg")) { typeStr = "EMG"; description = "Electromyography"; }
-	            else { typeStr = "Unknown"; description = "Unknown signal type"; }
+    /** Little JSON string escaper (Java 8–11 friendly). */
+    static String json(String s) {
+        if (s == null) return "null";
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"':  sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\b': sb.append("\\b");  break;
+                case '\f': sb.append("\\f");  break;
+                case '\n': sb.append("\\n");  break;
+                case '\r': sb.append("\\r");  break;
+                case '\t': sb.append("\\t");  break;
+                default:
+                    if (c < 0x20) {
+                        sb.append("\\u");
+                        int cu = c;
+                        for (int sh = 12; sh >= 0; sh -= 4) {
+                            int v = (cu >> sh) & 0xF;
+                            sb.append((char)(v < 10 ? '0' + v : 'a' + (v - 10)));
+                        }
+                    } else {
+                        sb.append(c);
+                    }
+            }
+        }
+        sb.append('"');
+        return sb.toString();
+    }
 
-	            // Filters (can be -1 if unset)
-	            final double lowCut = header.getLowFrequencyFilterSetting();
-	            final double highCut = header.getHighFrequencyFilterSetting();
+    /** Length-prefixed frame writer to stdout: [type:1][len:4 LE][payload]. */
+    static final class Framer {
+        private final BufferedOutputStream out;
+        private final byte[] header = new byte[5];
 
-	            // Totals (reported)
-	            final long reportedStartUs = header.getRecordingStartTime();
-	            final long reportedEndUs = header.getRecordingEndTime();
-	            final long totalBlocks = streamer.getNumberOfBlocks();
+        Framer(OutputStream stdout) {
+            // modest buffer for low latency; we also flush every frame while debugging
+            this.out = new BufferedOutputStream(stdout, 64 * 1024);
+        }
 
-	            System.out.println("Processing channel: " + channelName);
-	            System.out.println("Rate: " + rateHz + " Hz, Blocks: " + totalBlocks);
+        void send(int type, byte[] payload) throws IOException {
+            send(type, payload, 0, payload.length);
+        }
 
-	            // iterate pages, detect discontinuities, write one BIN per contiguous segment
+        void send(int type, byte[] payload, int off, int len) throws IOException {
+            // header: type (1) + length (4 LE)
+            header[0] = (byte) type;
+            header[1] = (byte) (len       & 0xFF);
+            header[2] = (byte) ((len >> 8)  & 0xFF);
+            header[3] = (byte) ((len >> 16) & 0xFF);
+            header[4] = (byte) ((len >> 24) & 0xFF);
+            out.write(header, 0, 5);
+            if (len > 0) out.write(payload, off, len);
+            out.flush(); // IMPORTANT: force delivery so Python sees frames immediately
+        }
 
-	            // Segment state
-	            List<SegmentMeta> segments = new ArrayList<>();
-	            int segIndex = -1;
-	            long segStartUs = 0L;                 // epoch µs of first sample in current segment
-	            long segSamples = 0L;                 // samples written in current segment
-	            OutputStream segOut = null;           // stream for current segment BIN
-	            ByteBuffer le64 = ByteBuffer.allocate(8).order(ByteOrder.LITTLE_ENDIAN); // for little-endian float64 writes
+        void send(int type, ByteBuffer buf) throws IOException {
+            buf.flip();
+            byte[] a = new byte[buf.remaining()];
+            buf.get(a);
+            send(type, a, 0, a.length);
+        }
 
-	            // Absolute channel bounds we actually observed
-	            Long observedStartUs = null;
-	            long observedEndUs = Long.MIN_VALUE;  // last-sample timestamp across the channel
+        void flush() throws IOException { out.flush(); }
+    }
 
-	            // Helper to open a new segment (on first page or after a gap)
-	            final SegOpenCloser segIO = new SegOpenCloser(outDir, baseName);
+    public void build() throws IOException {
+        final Framer fr = new Framer(System.out);
 
-	            // Running expected start = segStartUs + round(segSamples * periodUsExact)
-	            // This avoids cumulative float rounding page-to-page.
-	            for (TimeSeriesPage page : streamer.getNextBlocks((int) totalBlocks)) {
-	                final long pageStartUs = page.timeStart;
-	                final int n = page.values.length;
+        if (files == null || files.length == 0) {
+            System.err.println("JAVA: No input files.");
+            fr.send(END, new byte[0]);
+            return;
+        }
 
-	                if (observedStartUs == null) {
-	                    // First page in channel: set observed start
-	                    observedStartUs = pageStartUs;
-	                }
+        for (File inputFile : files) {
+            if (inputFile == null) continue;
+            System.err.println("JAVA: Opening MEF " + inputFile.getAbsolutePath());
 
-	                // If we have an open segment, check contiguity; otherwise open a new one.
-	                if (segOut == null) {
-	                    // Open first segment
-	                    segIndex += 1;
-	                    segStartUs = pageStartUs;
-	                    segSamples = 0L;
-	                    segOut = segIO.open(segIndex);
-	                } else {
-	                    final long expectedNextStartUs = segStartUs + Math.round(segSamples * periodUsExact);
-	                    final long delta = Math.abs(pageStartUs - expectedNextStartUs);
+            final String fileName = inputFile.getName();
+            final String baseName = (fileName.lastIndexOf('.') > 0)
+                    ? fileName.substring(0, fileName.lastIndexOf('.'))
+                    : fileName;
 
-	                    if (delta > tolUs) {
-	                        // --- Discontinuity detected: close previous segment and start a new one ---
-	                        final long segLastSampleUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
-	                        segIO.close(); // close previous BIN
-	                        segments.add(new SegmentMeta(segIndex, segStartUs, segLastSampleUs,
-	                                                     segSamples, segIO.fileName(segIndex)));
+            try (RandomAccessFile raf = new RandomAccessFile(inputFile.getAbsolutePath(), "r")) {
+                MEFStreamer streamer = new MEFStreamer(raf);
+                MefHeader2 header = streamer.getMEFHeader();
 
-	                        // Start new segment at this page
-	                        segIndex += 1;
-	                        segStartUs = pageStartUs;
-	                        segSamples = 0L;
-	                        segOut = segIO.open(segIndex);
-	                    }
-	                }
+                final double rateHz = header.getSamplingFrequency();
+                final double periodUsExact = 1_000_000.0 / rateHz;
+                final long tolUs = Math.max(2L, (long) Math.ceil(periodUsExact / 4.0)); // conservative
 
-	                // --- Stream page values as LITTLE-ENDIAN float64 ---
-	                // Base case: you believe values are µV already. If they are COUNTS, apply scaling here.
-	                final OutputStream os = segOut;
-	                for (int v : page.values) {
-	                    le64.clear();
-	                    le64.putDouble((double) v);
-	                    os.write(le64.array());
-	                }
+                // Simple type by filename (fallback)
+                final String channelName = baseName;
+                final String lower = channelName.toLowerCase(Locale.ROOT);
+                final String typeStr;
+                final String description;
+                if (lower.contains("grid")) { typeStr = "ECOG"; description = "Electrocorticography"; }
+                else if (lower.contains("seeg") || lower.contains("depth")) { typeStr = "SEEG"; description = "Stereoelectroencephalography"; }
+                else if (lower.contains("eeg")) { typeStr = "EEG"; description = "Electroencephalography"; }
+                else if (lower.contains("eog")) { typeStr = "EOG"; description = "Electrooculography"; }
+                else if (lower.contains("ecg") || lower.contains("ekg")) { typeStr = "ECG"; description = "Electrocardiography"; }
+                else if (lower.contains("emg")) { typeStr = "EMG"; description = "Electromyography"; }
+                else { typeStr = "Unknown"; description = "Unknown signal type"; }
 
-	                // Update running segment sample count
-	                segSamples += n;
+                final double lowCut = header.getLowFrequencyFilterSetting();
+                final double highCut = header.getHighFrequencyFilterSetting();
+                final long reportedStartUs = header.getRecordingStartTime();
+                final long reportedEndUs = header.getRecordingEndTime();
+                final long totalBlocks = streamer.getNumberOfBlocks();
 
-	                // Update observed channel end (last-sample timestamp after this page)
-	                final long pageLastSampleUs = pageStartUs + Math.round((long) (n - 1) * periodUsExact);
-	                if (pageLastSampleUs > observedEndUs) {
-	                    observedEndUs = pageLastSampleUs;
-	                }
-	            }
+                System.err.printf("JAVA: Channel=%s rate=%.3fHz blocks=%d tolUs=%d%n",
+                        channelName, rateHz, totalBlocks, tolUs);
 
-	            // Close the final open segment, if any
-	            if (segOut != null) {
-	                final long segLastSampleUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
-	                segIO.close();
-	                segments.add(new SegmentMeta(segIndex, segStartUs, segLastSampleUs, segSamples, segIO.fileName(segIndex)));
-	            }
+                // ---- META ----
+                String metaJson = "{"
+                        + "\"name\":" + json(channelName) + ","
+                        + "\"type\":" + json(typeStr) + ","
+                        + "\"description\":" + json(description) + ","
+                        + "\"unit\":" + json("counts") + ","
+                        + "\"low_cut_hz\":" + lowCut + ","
+                        + "\"high_cut_hz\":" + highCut + ","
+                        + "\"rate_hz\":" + rateHz + ","
+                        + "\"reported_start_us\":" + reportedStartUs + ","
+                        + "\"reported_end_us\":" + reportedEndUs
+                        + "}";
+                System.err.println("JAVA: Sending CHANNEL_META for " + channelName);
+                fr.send(CHANNEL_META, metaJson.getBytes(StandardCharsets.UTF_8));
+                System.err.println("JAVA: Sent CHANNEL_META");
 
-	            // Sanity: if no pages were present
-	            if (observedStartUs == null) {
-	                System.err.println("Warning: channel " + channelName + " has no pages/samples.");
-	                continue;
-	            }
+                // ---- Segment state ----
+                boolean segmentOpen = false;
+                long segStartUs = 0L;
+                long segSamples = 0L;
+                Long observedStartUs = null;
+                long observedEndUs = Long.MIN_VALUE;
 
-	            // Optional consistency check vs header (don’t fail; log if wildly off)
-	            if (Math.abs(observedStartUs - reportedStartUs) > 10_000) { // >10 ms difference
-	                System.out.println("Note: observed start (" + observedStartUs + ") != header start (" + reportedStartUs + ")");
-	            }
-	            if (reportedEndUs > 0 && Math.abs(observedEndUs - reportedEndUs) > 10_000) {
-	                System.out.println("Note: observed end (" + observedEndUs + ") != header end (" + reportedEndUs + ")");
-	            }
+                // Page buffer for int32 payload
+                byte[] pageBytes = new byte[0];
+                ByteBuffer pageBuf = ByteBuffer.wrap(new byte[0]).order(ByteOrder.LITTLE_ENDIAN);
 
-	            // ---- Write per-channel JSON metadata ----
-	            writeChannelJson(channelJsonPath, channelName, typeStr, description,
-	                             rateHz, lowCut, highCut, observedStartUs, observedEndUs, segments);
+                long bytesSinceLog = 0L;
+                final long LOG_EVERY_BYTES = 64L * 1024 * 1024; // 64 MB
 
-	            System.out.println("Wrote " + segments.size() + " segment(s) and JSON for " + channelName);
-	        }
-	    }
-	}
+                // ---- Stream pages ----
+                int blockIdx = 0;
+                for (TimeSeriesPage page : streamer.getNextBlocks((int) totalBlocks)) {
+                    blockIdx++;
+                    if (page == null) continue;
+                    final long pageStartUs = page.timeStart;
+                    final int n = (page.values == null ? 0 : page.values.length);
+                    if (n <= 0) continue;
 
-	/** Holds one segment’s bookkeeping for JSON. */
-	static final class SegmentMeta {
-	    final int index;
-	    final long startUs;
-	    final long endUs;       // last-sample timestamp
-	    final long nSamples;
-	    final String dataPath;  // filename only; relative to channel directory
+                    if (observedStartUs == null) observedStartUs = pageStartUs;
 
-	    SegmentMeta(int index, long startUs, long endUs, long nSamples, String dataPath) {
-	        this.index = index;
-	        this.startUs = startUs;
-	        this.endUs = endUs;
-	        this.nSamples = nSamples;
-	        this.dataPath = dataPath;
-	    }
-	}
+                    if (!segmentOpen) {
+                        segStartUs = pageStartUs;
+                        segSamples = 0L;
+                        ByteBuffer segStart = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                        segStart.putLong(segStartUs).putDouble(rateHz);
+                        System.err.printf("JAVA: SEGMENT_START t0=%d (block %d)%n", segStartUs, blockIdx);
+                        fr.send(SEGMENT_START, segStart);
+                        segmentOpen = true;
+                    } else {
+                        final long expectedNextStartUs = segStartUs + Math.round(segSamples * periodUsExact);
+                        final long delta = Math.abs(pageStartUs - expectedNextStartUs);
+                        if (delta > tolUs) {
+                            final long segLastUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
+                            ByteBuffer segEnd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                            segEnd.putLong(segLastUs).putLong(segSamples);
+                            System.err.printf("JAVA: GAP delta=%d us > tol=%d -> SEGMENT_END end_us=%d n=%d%n",
+                                    delta, tolUs, segLastUs, segSamples);
+                            fr.send(SEGMENT_END, segEnd);
 
-	/** Small helper to manage opening/closing segment BIN files with stable names. */
-	static final class SegOpenCloser {
-	    private final Path outDir;
-	    private final String baseName;
-	    private OutputStream current;
+                            // Start new segment
+                            segStartUs = pageStartUs;
+                            segSamples = 0L;
+                            ByteBuffer segStart2 = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                            segStart2.putLong(segStartUs).putDouble(rateHz);
+                            System.err.printf("JAVA: SEGMENT_START t0=%d (block %d)%n", segStartUs, blockIdx);
+                            fr.send(SEGMENT_START, segStart2);
+                        }
+                    }
 
-	    SegOpenCloser(Path outDir, String baseName) {
-	        this.outDir = outDir;
-	        this.baseName = baseName;
-	    }
+                    // SAMPLES_INT32 for this page
+                    final int needed = n * 4;
+                    if (pageBytes.length < needed) {
+                        pageBytes = new byte[Math.max(needed, 1 << 18)]; // >=256KB
+                        pageBuf = ByteBuffer.wrap(pageBytes).order(ByteOrder.LITTLE_ENDIAN);
+                    }
+                    pageBuf.clear();
+                    for (int v : page.values) pageBuf.putInt(v);
+                    // send only used bytes
+                    fr.send(SAMPLES_INT32, pageBytes, 0, needed);
 
-	    OutputStream open(int segIndex) throws IOException {
-	        close();
-	        Path p = outDir.resolve(fileName(segIndex));
-	        return (current = new BufferedOutputStream(Files.newOutputStream(p)));
-	    }
+                    segSamples += n;
+                    bytesSinceLog += needed;
 
-	    void close() throws IOException {
-	        if (current != null) {
-	            current.flush();
-	            current.close();
-	            current = null;
-	        }
-	    }
+                    if (bytesSinceLog >= LOG_EVERY_BYTES) {
+                        System.err.printf("JAVA: Wrote ~%d MB of samples in current segment%n", (bytesSinceLog / (1024 * 1024)));
+                        bytesSinceLog = 0;
+                    }
 
-	    String fileName(int segIndex) {
-	        return String.format("%s_seg%03d.bin", baseName, segIndex);
-	    }
-	}
+                    final long pageLastUs = pageStartUs + Math.round((n - 1) * periodUsExact);
+                    if (pageLastUs > observedEndUs) observedEndUs = pageLastUs;
+                }
 
-	/** Writes the per-channel JSON. No external deps; simple, readable JSON. */
-	static void writeChannelJson(Path out, String name, String type, String desc,
-	                             double rateHz, double lowCut, double highCut,
-	                             long absStartUs, long absEndUs, List<SegmentMeta> segments) throws IOException {
-	    StringBuilder sb = new StringBuilder(1024);
-	    sb.append("{\n");
-	    sb.append("  \"name\": ").append(json(name)).append(",\n");
-	    sb.append("  \"type\": ").append(json(type)).append(",\n");
-	    sb.append("  \"description\": ").append(json(desc)).append(",\n");
-	    sb.append("  \"unit\": ").append(json("uV (assumed)")).append(",\n"); // TODO: set to "counts" if not scaled
-	    sb.append("  \"low_cut_hz\": ").append(lowCut).append(",\n");
-	    sb.append("  \"high_cut_hz\": ").append(highCut).append(",\n");
-	    sb.append("  \"rate_hz\": ").append(rateHz).append(",\n");
-	    sb.append("  \"absolute_start_us\": ").append(absStartUs).append(",\n");
-	    sb.append("  \"absolute_end_us\": ").append(absEndUs).append(",\n");
-	    sb.append("  \"segments\": [\n");
-	    for (int i = 0; i < segments.size(); i++) {
-	        SegmentMeta s = segments.get(i);
-	        sb.append("    {")
-	          .append("\"index\": ").append(s.index).append(", ")
-	          .append("\"start_us\": ").append(s.startUs).append(", ")
-	          .append("\"end_us\": ").append(s.endUs).append(", ")
-	          .append("\"n_samples\": ").append(s.nSamples).append(", ")
-	          .append("\"data_path\": ").append(json(s.dataPath))
-	          .append("}");
-	        if (i + 1 < segments.size()) sb.append(",");
-	        sb.append("\n");
-	    }
-	    sb.append("  ]\n");
-	    sb.append("}\n");
+                if (segmentOpen) {
+                    final long segLastUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
+                    ByteBuffer segEnd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                    segEnd.putLong(segLastUs).putLong(segSamples);
+                    System.err.printf("JAVA: SEGMENT_END end_us=%d n=%d%n", segLastUs, segSamples);
+                    fr.send(SEGMENT_END, segEnd);
+                }
 
-	    Files.write(out, sb.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
-	}
+                System.err.println("JAVA: Channel done: " + channelName);
+            } catch (IOException ioe) {
+                System.err.println("JAVA: ERROR reading " + inputFile + ": " + ioe);
+                throw ioe;
+            }
+        }
 
-	/** Minimal JSON string escaper & quoter. */
-	static String json(String s) {
-	    StringBuilder sb = new StringBuilder(s.length() + 2);
-	    sb.append('"');
-	    for (int i = 0; i < s.length(); i++) {
-	        char c = s.charAt(i);
-	        switch (c) {
-	            case '"':  sb.append("\\\""); break;
-	            case '\\': sb.append("\\\\"); break;
-	            case '\b': sb.append("\\b");  break;
-	            case '\f': sb.append("\\f");  break;
-	            case '\n': sb.append("\\n");  break;
-	            case '\r': sb.append("\\r");  break;
-	            case '\t': sb.append("\\t");  break;
-	            default:
-	                if (c < 0x20) sb.append(String.format("\\u%04x", (int)c));
-	                else sb.append(c);
-	        }
-	    }
-	    sb.append('"');
-	    return sb.toString();
-	}
-
+        System.err.println("JAVA: All channels done; sending END");
+        fr.send(END, new byte[0]);
+        fr.flush();
+    }
 }
-                	
-
