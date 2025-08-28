@@ -1,514 +1,266 @@
 package edu.upenn.cis.eeg.mef.mefstreamer;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.RandomAccessFile;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.ChronoUnit;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.StringTokenizer;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
+import java.util.Locale;
 
-import edfheaderwriter.EDFHeaderWriter;
 import edu.upenn.cis.db.mefview.services.TimeSeriesPage;
-import edu.upenn.cis.edfdatawriter.EDFDataWriter;
 
-public class EDFBuilder{
-	
-	File[] files;
-	String directoryPath;
-	String outputEDF;
-	String subjectid;
-	int numsignals;
-	HashMap<String,Object> arguments; 
-	
-    ArrayList<Double> physicalMax;
-    ArrayList<Double> physicalMin;
-    
-	double runningMax;
-    double runningMin;
-    
-    double localMin;
-    double localMax;
-    
-    double digitalMax;
-    double digitalMin;
-    
-    // Initialize variables for counter/startdate/starttime
-	int counter;
-	
-    int currentOffset;
-    boolean mintimevalue;
-    
-    int startrange;
-    int endrange;
-    
-    double duration;
-    
-	
-	
-	public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
-		this.files = mefFiles;
-		this.directoryPath = directoryPath;
-		this.subjectid = subjectid;
-		this.numsignals = numsignals;
-		this.arguments = null; 
-		
-        this.physicalMax = new ArrayList<>();
-        this.physicalMin = new ArrayList<>();
-        
-		this.runningMax = 1;
-		this.runningMin = -1;
-		
-		this.localMin = -1;
-		this.localMax = 1;
-		
-		this.digitalMax = 32767;
-		this.digitalMin = -32767;
-        
-        // Initialize variables for counter/startdate/starttime
-		this.counter = 0;
-		
-		this.currentOffset = 0;
-		this.mintimevalue = false;
-		
-        this.startrange = 0;
-        this.endrange = 0;
-        
-		System.out.println(this.files);
-	
-	}
-	
-	public void build() throws FileNotFoundException, IOException {
-		
-		// Initialize variable for channelnames
-		ArrayList<String> channelnames = new ArrayList<>();
-		
-		
-		// Get channel names
-		for (File inputFile : this.files) {
-            String fileName = inputFile.getName();
-            String baseName;
-            
-            // Check for file extension
-            int dotIndex = fileName.lastIndexOf('.');
-            if (dotIndex > 0) {
-                baseName = fileName.substring(0, dotIndex);
-            } else {
-                baseName = fileName; // Use the whole filename if no extension
+public class EDFBuilder {
+
+    // Frame types
+    private static final int CHANNEL_META  = 1;
+    private static final int SEGMENT_START = 2;
+    private static final int SAMPLES_INT32 = 3;
+    private static final int SEGMENT_END   = 4;
+    private static final int END           = 5;
+
+    private final File[] files;
+    private final String directoryPath;
+    private final String subjectid;
+    private final int numsignals;
+
+    public EDFBuilder(File[] mefFiles, String directoryPath, String subjectid, int numsignals) {
+        this.files = mefFiles;
+        this.directoryPath = directoryPath;
+        this.subjectid = subjectid;
+        this.numsignals = numsignals;
+
+        System.err.println("JAVA: EDFBuilder init with " + (files == null ? 0 : files.length) + " files");
+    }
+
+    /** Little JSON string escaper (Java 8–11 friendly). */
+    static String json(String s) {
+        if (s == null) return "null";
+        StringBuilder sb = new StringBuilder(s.length() + 16);
+        sb.append('"');
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            switch (c) {
+                case '"':  sb.append("\\\""); break;
+                case '\\': sb.append("\\\\"); break;
+                case '\b': sb.append("\\b");  break;
+                case '\f': sb.append("\\f");  break;
+                case '\n': sb.append("\\n");  break;
+                case '\r': sb.append("\\r");  break;
+                case '\t': sb.append("\\t");  break;
+                default:
+                    if (c < 0x20) {
+                        sb.append("\\u");
+                        int cu = c;
+                        for (int sh = 12; sh >= 0; sh -= 4) {
+                            int v = (cu >> sh) & 0xF;
+                            sb.append((char)(v < 10 ? '0' + v : 'a' + (v - 10)));
+                        }
+                    } else {
+                        sb.append(c);
+                    }
             }
-            
-            channelnames.add(baseName);
-            
-		}
-
-		// Initialize variables for runningMax/runningMin
-
-		String startdate = "";
-		String starttime = "";
-		String startdatepre = "";
-		
-        // Read first MEF file and first block to build header
-		// Pulls the first mef file 
-        String path = this.files[0].getAbsolutePath();
-        
-        long daysBetweenInputAndBase = 0;
-        
-        // Opens the first Mef file from our list of files
-       try (RandomAccessFile file = new RandomAccessFile(path, "r")) {
-    	   	
-    	   // Get some file info from MEFStreamer
-        	MEFStreamer streamer = new MEFStreamer(file);
-        	MefHeader2 header = streamer.getMEFHeader();
-
-                 
-            long abs_starttime = header.getRecordingStartTime();
-            //System.out.println("Absolute Start Time: " + abs_starttime);
-            // Get number of blocks from MEF file
-            long numBlocks = streamer.getNumberOfBlocks();
-            System.out.println("Num Blocks: " + numBlocks + " blocks.");
-            
-        	// Pull sampling frequency to be used in calculations
-        	double samplingfreq = header.getSamplingFrequency();
-            // Define the time increment
-            long timeIncrement = (long) (1.0 / samplingfreq * Math.pow(10, 6)); // 1/sampling frequency * 10^6
-
-            TimeSeriesPage previousPage = null;
-             
-                
-            int pagesum = 0;
-            
-            long absStartTime = 0;
-            
-            // Initialize the arguments to be inputed into the edf header writer 
-            arguments = new HashMap<>();
-            arguments.put("SubjID", subjectid);
-            arguments.put("Signalnum", numsignals);
-            arguments.put("DigitalMin", digitalMin);
-            arguments.put("DigitalMax", digitalMax);
-            arguments.put("ChannelNames", channelnames);
-                
-            // Loop over each block in the first mef file
-            for (TimeSeriesPage page : streamer.getNextBlocks((int) numBlocks)) {
-            	
-                
-                // Get number of entries on page and add to variable
-                // Adds the number of entries for each block over time
-                pagesum += (page.values.length);
-                int recordsnum = pagesum * numsignals;
-                arguments.put("Recordsnum", recordsnum);
-                DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd.MM.yy");
-
-                // If this is the first page of the data, find absolute start time
-            	if (previousPage == null) {
-            		absStartTime = page.timeStart;
-            		String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
-            		// can be improved 
-            		StringTokenizer tokenizer = new StringTokenizer(date, " ");
-            		startdatepre = tokenizer.nextToken();
-                    LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
-                    // Searches if the start date is in the month of January and year of 2000
-                    // If it is then, it keeps that date (accounts for days of recording loss
-                    // If it isn't, then the data was not de-id'd properly
-                    if (inputDate.getYear() != 2000 && inputDate.getMonthValue() != 1) {
-                    	System.out.println("Subject was not de-identified");
-                    	LocalDate baseDate = LocalDate.of(2000, 1, 1);
-                    	daysBetweenInputAndBase = ChronoUnit.DAYS.between(inputDate, baseDate);
-                    	LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
-                    	startdate = shiftedDate.format(formatter);
-                    }
-                    else {
-                    	startdate = inputDate.format(formatter);
-                    }
-            		arguments.put("StartDate", startdate);
-            		// Start Time is maintained
-            		starttime = tokenizer.nextToken();
-            		arguments.put("StartTime", starttime);
-                    
-        			long lastEntryTime = page.timeStart + (page.values.length - 1) * timeIncrement;
-        			RandomAccessFile openFile = new RandomAccessFile(path,"r");
-        			MEFStreamer nextpagestreamer = new MEFStreamer(openFile);
-        			List<TimeSeriesPage> nextPages = nextpagestreamer.getNextBlocks((int) 2);
-        			long nextBlockStartTime = nextPages.get(1).timeStart;
-        			nextpagestreamer.close();
-        			
-        			
-
-        			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
-							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
-            	}
-
-            	
-        		else {
-        			long lastEntryTime = previousPage.timeStart + (previousPage.values.length - 1) * timeIncrement;
-        			long nextBlockStartTime = page.timeStart;
-        			if (mintimevalue == false) {
-        				absStartTime = page.timeStart;
-        				String date = new java.text.SimpleDateFormat("dd.MM.yy HH.mm.ss").format(new java.util.Date (page.timeStart / 1000 )); 
-            			// can be improved 
-        				StringTokenizer tokenizer = new StringTokenizer(date, " ");
-        				startdatepre = tokenizer.nextToken();
-        				LocalDate inputDate = LocalDate.parse(startdatepre, formatter);
-        	            if (inputDate.getYear() != 2000 && inputDate.getMonthValue() != 1) {
-        	            	LocalDate shiftedDate = inputDate.plusDays(daysBetweenInputAndBase);
-        	            	startdate = shiftedDate.format(formatter);
-                           }
-                           else {
-                           	startdate= inputDate.format(formatter);
-                           }
-                		arguments.put("StartDate", startdate);
-        				starttime = tokenizer.nextToken();
-        				arguments.put("StartTime", starttime);
-        				mintimevalue = true;
-        			}
-        			
-        			
-
-        			pagesum = readAndWriteBlocks(startdate, starttime, abs_starttime, numBlocks, samplingfreq, timeIncrement,
-							pagesum, absStartTime, page, lastEntryTime, nextBlockStartTime);
-
-
-            		}
-            	previousPage = page;
-                runningMax = 1; 
-            	runningMin = -1; 
-            	streamer.close();            	
-              
-            	
-            	
-            } // This is the loop for each block within a mef file
-                
-
-            
-        } catch (IOException e) {
-            e.printStackTrace();
         }
-	}
+        sb.append('"');
+        return sb.toString();
+    }
 
+    /** Length-prefixed frame writer to stdout: [type:1][len:4 LE][payload]. */
+    static final class Framer {
+        private final BufferedOutputStream out;
+        private final byte[] header = new byte[5];
 
-	private int readAndWriteBlocks(String startdate, String starttime, long abs_starttime, long numBlocks,
-			double samplingfreq, long timeIncrement, int pagesum, long absStartTime, TimeSeriesPage page,
-			long lastEntryTime, long nextBlockStartTime) throws FileNotFoundException, IOException {
-		
-		long timeDifference = nextBlockStartTime - lastEntryTime;
-		endrange++;
+        Framer(OutputStream stdout) {
+            // modest buffer for low latency; we also flush every frame while debugging
+            this.out = new BufferedOutputStream(stdout, 64 * 1024);
+        }
 
+        void send(int type, byte[] payload) throws IOException {
+            send(type, payload, 0, payload.length);
+        }
 
+        void send(int type, byte[] payload, int off, int len) throws IOException {
+            // header: type (1) + length (4 LE)
+            header[0] = (byte) type;
+            header[1] = (byte) (len       & 0xFF);
+            header[2] = (byte) ((len >> 8)  & 0xFF);
+            header[3] = (byte) ((len >> 16) & 0xFF);
+            header[4] = (byte) ((len >> 24) & 0xFF);
+            out.write(header, 0, 5);
+            if (len > 0) out.write(payload, off, len);
+            out.flush(); // IMPORTANT: force delivery so Python sees frames immediately
+        }
 
-		outputEDF = this.directoryPath + File.separator + subjectid + "_" + counter + ".edf";
-		//delete existing files before rerunning!
-		File delFile = new File(outputEDF); //opens file
-		if (delFile.exists()) {
-			delFile.delete();
-		}
+        void send(int type, ByteBuffer buf) throws IOException {
+            buf.flip();
+            byte[] a = new byte[buf.remaining()];
+            buf.get(a);
+            send(type, a, 0, a.length);
+        }
 
-		// Check if the time difference requires a new file (or new channel)
-		if (timeDifference > 2.5 * timeIncrement && page.timeStart != absStartTime || timeDifference > 2.5 * timeIncrement && page.timeStart == abs_starttime) {
-			System.out.println("Discontinuity Found: " + page.timeStart + " Difference: " + timeDifference);
+        void flush() throws IOException { out.flush(); }
+    }
 
-			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
+    public void build() throws IOException {
+        final Framer fr = new Framer(System.out);
 
-			counter++;
+        if (files == null || files.length == 0) {
+            System.err.println("JAVA: No input files.");
+            fr.send(END, new byte[0]);
+            return;
+        }
 
-			// Specific to within file
-			startrange = endrange;
-			mintimevalue = false;
-			physicalMax = new ArrayList<>();
-			physicalMin = new ArrayList<>();
-			duration = 0;
-			pagesum = 0;
+        for (File inputFile : files) {
+            if (inputFile == null) continue;
+            System.err.println("JAVA: Opening MEF " + inputFile.getAbsolutePath());
 
-		}
-		else if (endrange == numBlocks) {
+            final String fileName = inputFile.getName();
+            final String baseName = (fileName.lastIndexOf('.') > 0)
+                    ? fileName.substring(0, fileName.lastIndexOf('.'))
+                    : fileName;
 
-			System.out.println("Final EDF Writing: " + page.timeStart);
+            try (RandomAccessFile raf = new RandomAccessFile(inputFile.getAbsolutePath(), "r")) {
+                MEFStreamer streamer = new MEFStreamer(raf);
+                MefHeader2 header = streamer.getMEFHeader();
 
-			fileiterateandwrite(page, absStartTime, startdate, starttime, pagesum, samplingfreq);
+                final double rateHz = header.getSamplingFrequency();
+                final double periodUsExact = 1_000_000.0 / rateHz;
+                final long tolUs = Math.max(2L, (long) Math.ceil(periodUsExact / 4.0)); // conservative
 
-			System.out.println("Final Count (End Range): " + endrange);
+                // Simple type by filename (fallback)
+                final String channelName = baseName;
+                final String lower = channelName.toLowerCase(Locale.ROOT);
+                final String typeStr;
+                final String description;
+                if (lower.contains("grid")) { typeStr = "ECOG"; description = "Electrocorticography"; }
+                else if (lower.contains("seeg") || lower.contains("depth")) { typeStr = "SEEG"; description = "Stereoelectroencephalography"; }
+                else if (lower.contains("eeg")) { typeStr = "EEG"; description = "Electroencephalography"; }
+                else if (lower.contains("eog")) { typeStr = "EOG"; description = "Electrooculography"; }
+                else if (lower.contains("ecg") || lower.contains("ekg")) { typeStr = "ECG"; description = "Electrocardiography"; }
+                else if (lower.contains("emg")) { typeStr = "EMG"; description = "Electromyography"; }
+                else { typeStr = "Unknown"; description = "Unknown signal type"; }
 
+                final double lowCut = header.getLowFrequencyFilterSetting();
+                final double highCut = header.getHighFrequencyFilterSetting();
+                final long reportedStartUs = header.getRecordingStartTime();
+                final long reportedEndUs = header.getRecordingEndTime();
+                final long totalBlocks = streamer.getNumberOfBlocks();
 
-		}
-		return pagesum;
-	}
+                System.err.printf("JAVA: Channel=%s rate=%.3fHz blocks=%d tolUs=%d%n",
+                        channelName, rateHz, totalBlocks, tolUs);
 
-	private void writeDatatoEDF(double conversion_factor, int subtwocounter, MEFStreamer subtwostreamer) throws IOException {
-		if ((subtwocounter == 0) && (startrange == 0) && (endrange == 1)) {
-			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) 1);
-			EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+                // ---- META ----
+                String metaJson = "{"
+                        + "\"name\":" + json(channelName) + ","
+                        + "\"type\":" + json(typeStr) + ","
+                        + "\"description\":" + json(description) + ","
+                        + "\"unit\":" + json("counts") + ","
+                        + "\"low_cut_hz\":" + lowCut + ","
+                        + "\"high_cut_hz\":" + highCut + ","
+                        + "\"rate_hz\":" + rateHz + ","
+                        + "\"reported_start_us\":" + reportedStartUs + ","
+                        + "\"reported_end_us\":" + reportedEndUs
+                        + "}";
+                System.err.println("JAVA: Sending CHANNEL_META for " + channelName);
+                fr.send(CHANNEL_META, metaJson.getBytes(StandardCharsets.UTF_8));
+                System.err.println("JAVA: Sent CHANNEL_META");
 
-			dataWriter.write(currentOffset,subtwopage.get(0).values);
-			currentOffset += dataWriter.calculateRecordSize();
-			
-		}
-		else {
-			List<TimeSeriesPage> subtwopage = subtwostreamer.getNextBlocks((int) endrange);
-			for (int i = startrange; i < endrange; i++) {
+                // ---- Segment state ----
+                boolean segmentOpen = false;
+                long segStartUs = 0L;
+                long segSamples = 0L;
+                Long observedStartUs = null;
+                long observedEndUs = Long.MIN_VALUE;
 
-				double gain = (runningMax - runningMin)/(digitalMax  - digitalMin);
-				double offset = (-1 * digitalMin * gain) + runningMin;
-				for (int j =0; j < subtwopage.get(i).values.length; j++) {
-					subtwopage.get(i).values[j] = (int) ((((subtwopage.get(i).values[j]) * conversion_factor) - offset)/ gain); 
-					subtwocounter++;
-				}
+                // Page buffer for int32 payload
+                byte[] pageBytes = new byte[0];
+                ByteBuffer pageBuf = ByteBuffer.wrap(new byte[0]).order(ByteOrder.LITTLE_ENDIAN);
 
-				EDFDataWriter dataWriter =  new EDFDataWriter(outputEDF, arguments);
+                long bytesSinceLog = 0L;
+                final long LOG_EVERY_BYTES = 64L * 1024 * 1024; // 64 MB
 
-				dataWriter.write(currentOffset,subtwopage.get(i).values);
-				currentOffset += dataWriter.calculateRecordSize();
+                // ---- Stream pages ----
+                int blockIdx = 0;
+                for (TimeSeriesPage page : streamer.getNextBlocks((int) totalBlocks)) {
+                    blockIdx++;
+                    if (page == null) continue;
+                    final long pageStartUs = page.timeStart;
+                    final int n = (page.values == null ? 0 : page.values.length);
+                    if (n <= 0) continue;
 
-			}
-		}
-	}
-	
-	private void fileiterateandwrite(TimeSeriesPage page, long absStartTime, String startdate, String starttime, int pagesum, double samplingfreq) throws IOException {
-		double actual_duration = pagesum/samplingfreq;
-		arguments.put("Duration", actual_duration);
-		
-		// Opens up all files, finds if they are within the range, scales, and then 
-		// writes to the edf file
-		for (File currentFile : this.files) {
-			int subcounter = 0;
-			int subtwocounter = 0;
-			runningMax = 1;
-			runningMin = -1;
-			String currentpath = currentFile.getAbsolutePath();
-			RandomAccessFile currenttwoFile = new RandomAccessFile(currentpath,"r");
-			MEFStreamer substreamer = new MEFStreamer(currenttwoFile);
-			MefHeader2 headervoltage = substreamer.getMEFHeader();
-			
-            double conversion_factor = headervoltage.getVoltageConversionFactor();
-			
-			subcounter = buildLocalMinMax(conversion_factor, subcounter, substreamer);
-			
-			RandomAccessFile currentthreeFile = new RandomAccessFile(currentpath,"r");
-			MEFStreamer subtwostreamer = new MEFStreamer(currentthreeFile);
-			
-			writeDatatoEDF(conversion_factor, subtwocounter, subtwostreamer);
+                    if (observedStartUs == null) observedStartUs = pageStartUs;
 
-            subcounter++;
-            substreamer.close();
-            subtwostreamer.close();
-            //  Add the physical max dimension here and index to be the first in the list
-    		physicalMax.add(runningMax);
-    		physicalMin.add(runningMin);
-		}
+                    if (!segmentOpen) {
+                        segStartUs = pageStartUs;
+                        segSamples = 0L;
+                        ByteBuffer segStart = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                        segStart.putLong(segStartUs).putDouble(rateHz);
+                        System.err.printf("JAVA: SEGMENT_START t0=%d (block %d)%n", segStartUs, blockIdx);
+                        fr.send(SEGMENT_START, segStart);
+                        segmentOpen = true;
+                    } else {
+                        final long expectedNextStartUs = segStartUs + Math.round(segSamples * periodUsExact);
+                        final long delta = Math.abs(pageStartUs - expectedNextStartUs);
+                        if (delta > tolUs) {
+                            final long segLastUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
+                            ByteBuffer segEnd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                            segEnd.putLong(segLastUs).putLong(segSamples);
+                            System.err.printf("JAVA: GAP delta=%d us > tol=%d -> SEGMENT_END end_us=%d n=%d%n",
+                                    delta, tolUs, segLastUs, segSamples);
+                            fr.send(SEGMENT_END, segEnd);
 
-		// Write out data into the edf
-		System.out.println("Start Date: "  + startdate);
-		System.out.println("Start Time: "  + starttime);
-		Instant instant = Instant.now();
- 		System.out.println("UTC Time: " + instant);
-		arguments.put("Physicalmax", physicalMax);
-		arguments.put("Physicalmin", physicalMin);
-		arguments.put("SubjID", subjectid);
-		arguments.put("Signalnum", numsignals);	
-		
-		calculatedatarecords(samplingfreq, pagesum, numsignals, arguments);
-		
-		// Write header for the new file
-		EDFHeaderWriter headerWriter = new EDFHeaderWriter(outputEDF, arguments);
-		headerWriter.write(outputEDF);
-	}
-	
-	private void calculatedatarecords(double samplingfreq, int pagesum, int numsignals, HashMap<String, Object> arguments) {
+                            // Start new segment
+                            segStartUs = pageStartUs;
+                            segSamples = 0L;
+                            ByteBuffer segStart2 = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                            segStart2.putLong(segStartUs).putDouble(rateHz);
+                            System.err.printf("JAVA: SEGMENT_START t0=%d (block %d)%n", segStartUs, blockIdx);
+                            fr.send(SEGMENT_START, segStart2);
+                        }
+                    }
 
-		//  Need to figure out if this is wrong 
-		int totalSamples = pagesum;// * numsignals;
+                    // SAMPLES_INT32 for this page
+                    final int needed = n * 4;
+                    if (pageBytes.length < needed) {
+                        pageBytes = new byte[Math.max(needed, 1 << 18)]; // >=256KB
+                        pageBuf = ByteBuffer.wrap(pageBytes).order(ByteOrder.LITTLE_ENDIAN);
+                    }
+                    pageBuf.clear();
+                    for (int v : page.values) pageBuf.putInt(v);
+                    // send only used bytes
+                    fr.send(SAMPLES_INT32, pageBytes, 0, needed);
 
-		// Upper limit to the number of bytes allowed per data record according to edf
-		int maxSamplesPerRecord = 61440;  
+                    segSamples += n;
+                    bytesSinceLog += needed;
 
-		// Variables to store the results
-		int numDataRecords = 0;
-		int samplesPerRecord = 0;
-		
-		if (pagesum == 1) {
-			arguments.put("Recordsnum", 1);
-			arguments.put("NumSamples", 1);
-			return;
-		}
-		else {
-//			int start = 0;
-//			if (0 <= totalSamples && totalSamples >= 999) {
-//				start = totalSamples / 10; 
-//			}
-//			else if (1000 <= totalSamples && totalSamples >= 9999) {
-//				start = totalSamples / 100; 
-//			}
-//			else if (10000 <= totalSamples && totalSamples >= 99999) {
-//				start = totalSamples / 1000; 
-//			}
-//			else if (100000 <= totalSamples && totalSamples >= 999999) {
-//				start = totalSamples / 10000; 
-//			}
-//			else if (1000000 <= totalSamples && totalSamples >= 9999999) {
-//				start = totalSamples / 100000; 
-//			}
- 			// Need to update this so it actually works 
-			// Iterate over values to determine value to divide by
-			 int start = totalSamples / 10000;  
-			 if (start == 0) {
-				 if (0 <= totalSamples && totalSamples >= 999) {
-					 start = totalSamples / 10; 
-				 }
-				 else if (1000 <= totalSamples && totalSamples >= 9999) {
-					 start = totalSamples / 100; 
-				 }
-			 }
+                    if (bytesSinceLog >= LOG_EVERY_BYTES) {
+                        System.err.printf("JAVA: Wrote ~%d MB of samples in current segment%n", (bytesSinceLog / (1024 * 1024)));
+                        bytesSinceLog = 0;
+                    }
 
+                    final long pageLastUs = pageStartUs + Math.round((n - 1) * periodUsExact);
+                    if (pageLastUs > observedEndUs) observedEndUs = pageLastUs;
+                }
 
-			for (samplesPerRecord = start; samplesPerRecord <= maxSamplesPerRecord; samplesPerRecord++) {
-				// Check if the number of data records will be a whole number
-				if (totalSamples % samplesPerRecord == 0) {
-					// Calculate the number of data records
-					numDataRecords = totalSamples / samplesPerRecord;
-					arguments.put("Recordsnum", numDataRecords);
-					arguments.put("NumSamples",samplesPerRecord);
+                if (segmentOpen) {
+                    final long segLastUs = segStartUs + Math.round((segSamples - 1) * periodUsExact);
+                    ByteBuffer segEnd = ByteBuffer.allocate(16).order(ByteOrder.LITTLE_ENDIAN);
+                    segEnd.putLong(segLastUs).putLong(segSamples);
+                    System.err.printf("JAVA: SEGMENT_END end_us=%d n=%d%n", segLastUs, segSamples);
+                    fr.send(SEGMENT_END, segEnd);
+                }
 
-					double newduration = (double) samplesPerRecord / samplingfreq;
-					arguments.put("Duration", newduration);
+                System.err.println("JAVA: Channel done: " + channelName);
+            } catch (IOException ioe) {
+                System.err.println("JAVA: ERROR reading " + inputFile + ": " + ioe);
+                throw ioe;
+            }
+        }
 
-					return;
-				}
-			}
-			if (samplesPerRecord == (maxSamplesPerRecord + 1)) {
-					System.out.println("No Whole Data Records Found");
-					samplesPerRecord = 1;
-					numDataRecords = totalSamples / samplesPerRecord;
-					arguments.put("Recordsnum", numDataRecords);
-					arguments.put("NumSamples",samplesPerRecord);
-
-					double newduration = (double) samplesPerRecord / samplingfreq;
-					arguments.put("Duration", newduration);
-					
-				}
-			
-		}
-
-	}
-	
-
-
-	private int buildLocalMinMax(double conversion_factor, int subcounter, MEFStreamer substreamer) throws IOException {
-		if ((subcounter == 0) && (startrange == 0) && (endrange == 1)) {
-			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) 1);
-			// Get min and max from values by streaming them in
-			localMin = Arrays.stream(subpage.get(0).values).min().orElseThrow();
-			localMax = Arrays.stream(subpage.get(0).values).max().orElseThrow();
-			if (localMax > runningMax) {
-				runningMax = localMax;
-
-			}
-			if (localMin < runningMin) {
-				runningMin = localMin;
-			}
-
-
-		}
-		else {
-			List<TimeSeriesPage> subpage = substreamer.getNextBlocks((int) endrange);
-			for (int i = startrange; i < endrange; i++) {
-
-				subcounter++;
-
-				if (conversion_factor < 0) {
-					// Get min and max from values by streaming them in
-					localMax = (Arrays.stream(subpage.get(i).values).min().orElseThrow()) * conversion_factor;
-					localMin = (Arrays.stream(subpage.get(i).values).max().orElseThrow()) * conversion_factor;
-					if (localMax > runningMax) {
-						runningMax = localMax;
-
-					}
-					if (localMin < runningMin) {
-						runningMin = localMin;
-					}
-
-				}
-
-				else {
-
-					// Get min and max from values by streaming them in
-					localMin = (Arrays.stream(subpage.get(i).values).min().orElseThrow()) * conversion_factor;
-					localMax = (Arrays.stream(subpage.get(i).values).max().orElseThrow()) * conversion_factor;
-					if (localMax > runningMax) {
-						runningMax = localMax;
-
-					}
-					if (localMin < runningMin) {
-						runningMin = localMin;
-					}
-				}
-
-			}
-		}
-		return subcounter;
-	}
+        System.err.println("JAVA: All channels done; sending END");
+        fr.send(END, new byte[0]);
+        fr.flush();
+    }
 }
-                	
-

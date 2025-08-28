@@ -169,9 +169,14 @@ public class EDFHeaderWriter {
         File tempFile = new File(EDFFile + ".tmp");
 
         // Make sure file exists
-        if (!originalFile.exists()) {
-            throw new FileNotFoundException("File not found: " + EDFFile);
-        }
+	    if (!originalFile.exists()) {
+	        // Create the file with only the header
+	        try (FileOutputStream fos = new FileOutputStream(originalFile)) {
+	            fos.write(header);
+	            fos.flush();
+	        }
+	        return;
+	    }
 
         try (FileOutputStream outputStream = new FileOutputStream(tempFile); // Stream out to temp file
              FileInputStream inputStream = new FileInputStream(originalFile); // EDF File
@@ -192,6 +197,7 @@ public class EDFHeaderWriter {
         // Quick replace...should be near instantaneous according to stackoverflow
         Files.move(tempFile, originalFile);//, StandardCopyOption.REPLACE_EXISTING);
 	}
+	
     
     // Helper method to write a string to the header byte array
     private static int writeStringToHeader(String str, byte[] header, int offset, int length) {
